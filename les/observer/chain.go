@@ -7,48 +7,48 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// ObsChain ...
-type ObsChain struct {
+// Chain ...
+type Chain struct {
 }
 
-// NewObsChain ...
-func NewObsChain(db ethdb.Database) *ObsChain {
-	return &ObsChain{}
+// NewChain ...
+func NewChain(db ethdb.Database) *Chain {
+	return &Chain{}
 }
 
 // GetHead ...
-func (o *ObsChain) GetHead() *ObsBlock {
-	return &ObsBlock{}
+func (o *Chain) GetHead() *Block {
+	return &Block{}
 }
 
 // GetBlock ...
-func (o *ObsChain) GetBlock(index uint64) *ObsBlock {
-	return &ObsBlock{}
+func (o *Chain) GetBlock(index uint64) *Block {
+	return &Block{}
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
-func (o *ObsChain) LockAndGetTrie() *trie.Trie {
+func (o *Chain) LockAndGetTrie() *trie.Trie {
 	return &trie.Trie{}
 }
 
 // UnlockTrie unlock trie mutex
-func (o *ObsChain) UnlockTrie() {
+func (o *Chain) UnlockTrie() {
 
 }
 
 // CreateBlock commits current trie and seals a new block; continues using the same trie
 // values are persistent, we will care about garbage collection later
-func (o *ObsChain) CreateBlock() *ObsBlock {
-	return &ObsBlock{}
+func (o *Chain) CreateBlock() *Block {
+	return &Block{}
 }
 
 // AutoCreateBlocks ...
 // creates a new block periodically until chain is closed; non-blocking, starts a goroutine
-func (o *ObsChain) AutoCreateBlocks(period time.Duration) {
+func (o *Chain) AutoCreateBlocks(period time.Duration) {
 
 }
 
 // Close closes the chain
-func (o *ObsChain) Close() {
+func (o *Chain) Close() {
 
 }

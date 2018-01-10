@@ -2,9 +2,9 @@ package observer
 
 import "github.com/ethereum/go-ethereum/common"
 
-// ObsBlock represents one block on the observer chain
+// Block represents one block on the observer chain
 // Signature is based on the hash of the RLP encoding of the struct while the "Signature" field is set to nil.
-type ObsBlock struct {
+type Block struct {
 	PrevHash      common.Hash
 	Number        uint64
 	UnixTime      uint64

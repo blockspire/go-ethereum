@@ -5,7 +5,7 @@ type EventLogger struct {
 }
 
 // NewEventLogger ...
-func NewEventLogger(o *ObsChain, keyPrefix []byte) *EventLogger {
+func NewEventLogger(o *Chain, keyPrefix []byte) *EventLogger {
 	return &EventLogger{}
 }
 
