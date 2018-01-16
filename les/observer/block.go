@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -39,20 +40,25 @@ type Block struct {
 }
 
 // NewBlock creates a new block.
-// TODO: More details for arguments.
-func NewBlock(privKey *ecdsa.PrivateKey) *Block {
+// TODO: More details about arguments.
+func NewBlock(txs []*types.Transaction, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		PrevHash:      common.Hash{},
 		Number:        0,
 		UnixTime:      uint64(time.Now().Unix()),
 		SignatureType: "ECDSA",
 	}
-	b.sign(privKey)
+	if len(txs) == 0 {
+		b.TrieRoot = types.EmptyRootHash
+	} else {
+		b.TrieRoot = types.DeriveSha(types.Transactions(txs))
+	}
+	b.Sign(privKey)
 	return b
 }
 
-// sign adds a signature to the block by the given privKey
-func (b *Block) sign(privKey *ecdsa.PrivateKey) {
+// Sign adds a signature to the block by the given private key.
+func (b *Block) Sign(privKey *ecdsa.PrivateKey) {
 	unsignedBlock := Block{
 		PrevHash:      b.PrevHash,
 		Number:        b.Number,
@@ -61,8 +67,7 @@ func (b *Block) sign(privKey *ecdsa.PrivateKey) {
 		SignatureType: b.SignatureType,
 	}
 	rlp, _ := rlp.EncodeToBytes(unsignedBlock)
-	sig, _ := crypto.Sign(crypto.Keccak256(rlp), privKey)
-	b.Signature = b.Signature.add("sign", sig)
+	b.Signature, _ = crypto.Sign(crypto.Keccak256(rlp), privKey)
 }
 
 // rlpHash calculates a hash out of the passed data.
