@@ -47,14 +47,6 @@ func NewChain(db ethdb.Database) (*Chain, error) {
 	return oc, nil
 }
 
-// Head returns the first block of Observer chain
-func (o *Chain) Head() *Block {
-	if o.firstBlock != nil {
-		return o.firstBlock
-	}
-	return nil
-}
-
 // Block returns a single block by its
 func (o *Chain) Block(index uint64) (*Block, error) {
 	return &Block{}, nil
