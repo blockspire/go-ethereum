@@ -89,3 +89,8 @@ func (b *Block) Number() *big.Int {
 func (b *Block) Statements() common.Hash {
 	return b.header.Statements
 }
+
+// Hash .. hasing header
+func (h *Header) Hash() common.Hash {
+	return rlpHash(h)
+}
