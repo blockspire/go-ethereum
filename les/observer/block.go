@@ -19,6 +19,7 @@ package observer
 import (
 	"crypto/ecdsa"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,22 +28,40 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+// -----
+// HEADER
+// -----
+
 // Header contains the header fields of a block opposite to
 // internal data.
 type Header struct {
 	PrevHash      common.Hash `json:"prevHash"      gencodec:"required"`
 	Number        uint64      `json:"number"        gencodec:"required"`
 	UnixTime      uint64      `json:"unixTime"      gencodec:"required"`
-	Statements    common.Hash `json:"statements"      gencodec:"required"`
+	Statements    common.Hash `json:"statements"    gencodec:"required"`
 	SignatureType string      `json:"signatureType" gencodec:"required"`
 	Signature     []byte      `json:"signature"     gencodec:"required"`
 }
+
+// Hash returns the block hash of the header, which is simply the keccak256
+// hash of its RLP encoding.
+func (h *Header) Hash() common.Hash {
+	return rlpHash(h)
+}
+
+// -----
+// BLOCK
+// -----
 
 // Block represents one block on the observer chain.
 // Signature is based on the hash of the RLP encoding of
 // the struct while the "Signature" field is set to nil.
 type Block struct {
 	header *Header
+
+	// Caches.
+	hash atomic.Value
+	size atomic.Value
 }
 
 // NewBlock creates a new block.
@@ -88,4 +107,26 @@ func (b *Block) Number() *big.Int {
 // Statements returns the hash of the block statements.
 func (b *Block) Statements() common.Hash {
 	return b.header.Statements
+}
+
+// Hash returns the keccak256 hash of the block's header.
+// The hash is computed on the first call and cached thereafter.
+func (b *Block) Hash() common.Hash {
+	if hash := b.hash.Load(); hash != nil {
+		return hash.(common.Hash)
+	}
+	v := b.header.Hash()
+	b.hash.Store(v)
+	return v
+}
+
+// Size returns the storage size of the block.
+func (b *Block) Size() common.StorageSize {
+	if size := b.size.Load(); size != nil {
+		return size.(common.StorageSize)
+	}
+	c := writeCounter(0)
+	rlp.Encode(&c, b)
+	b.size.Store(common.StorageSize(c))
+	return common.StorageSize(c)
 }

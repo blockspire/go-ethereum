@@ -17,8 +17,8 @@
 package observer
 
 import (
-	"github.com/blockspire/go-ethereum/ethdb"
-	"github.com/blockspire/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -32,8 +32,8 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 		return err
 	}
 
-	hash := block.header.Hash().Bytes()
-	num := block.header.Number.Uint64()
+	hash := block.Hash().Bytes()
+	num := block.Number().Uint64()
 	encNum := encodeBlockNumber(num)
 	key := append(observerBlockHashPrefix, hash...)
 

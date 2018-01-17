@@ -93,13 +93,12 @@ func (s *Statement) EncodeRLP(w io.Writer) error {
 }
 
 // DecodeRLP implements rlp.Decoder.
-func (s *Statement) DecodeRLP(s *rlp.Stream) error {
-	_, size, _ := s.Kind()
-	err := s.Decode(&s.kv)
+func (s *Statement) DecodeRLP(str *rlp.Stream) error {
+	_, size, _ := str.Kind()
+	err := str.Decode(&s.kv)
 	if err == nil {
 		s.size.Store(common.StorageSize(rlp.ListSize(size)))
 	}
-
 	return err
 }
 
@@ -139,7 +138,7 @@ func (s Statements) Len() int {
 }
 
 // GetRlp implements types.DerivableList and returns the i'th
-// statement of s in rlp.
+// statement of s in RLP encoding.
 func (s Statements) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
