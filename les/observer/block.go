@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -34,7 +33,7 @@ type Header struct {
 	PrevHash      common.Hash `json:"prevHash"      gencodec:"required"`
 	Number        uint64      `json:"number"        gencodec:"required"`
 	UnixTime      uint64      `json:"unixTime"      gencodec:"required"`
-	TrieRoot      common.Hash `json:"trieRoot"      gencodec:"required"`
+	Statements    common.Hash `json:"statements"      gencodec:"required"`
 	SignatureType string      `json:"signatureType" gencodec:"required"`
 	Signature     []byte      `json:"signature"     gencodec:"required"`
 }
@@ -48,7 +47,7 @@ type Block struct {
 
 // NewBlock creates a new block.
 // TODO: More details about arguments.
-func NewBlock(txs []*types.Transaction, privKey *ecdsa.PrivateKey) *Block {
+func NewBlock(txs []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		header: &Header{
 			PrevHash:      common.Hash{},
@@ -58,9 +57,9 @@ func NewBlock(txs []*types.Transaction, privKey *ecdsa.PrivateKey) *Block {
 		},
 	}
 	if len(txs) == 0 {
-		b.header.TrieRoot = types.EmptyRootHash
+		b.header.Statements = types.EmptyRootHash
 	} else {
-		b.header.TrieRoot = types.DeriveSha(types.Transactions(txs))
+		b.header.Statements = types.DeriveSha(Statements(txs))
 	}
 	b.Sign(privKey)
 	return b
@@ -73,7 +72,7 @@ func (b *Block) Sign(privKey *ecdsa.PrivateKey) {
 			PrevHash:      b.header.PrevHash,
 			Number:        b.header.Number,
 			UnixTime:      b.header.UnixTime,
-			TrieRoot:      b.header.TrieRoot,
+			Statements:    b.header.Statements,
 			SignatureType: b.header.SignatureType,
 		},
 	}
@@ -86,15 +85,7 @@ func (b *Block) Number() *big.Int {
 	return new(big.Int).SetUint64(b.header.Number)
 }
 
-// TrieRoot returns the hash of the trie root.
-func (b *Block) TrieRoot() common.Hash {
-	return b.header.TrieRoot
-}
-
-// rlpHash calculates a hash out of the passed data.
-func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
-	rlp.Encode(hw, x)
-	hw.Sum(h[:0])
-	return h
+// Statements returns the hash of the block statements.
+func (b *Block) Statements() common.Hash {
+	return b.header.Statements
 }
