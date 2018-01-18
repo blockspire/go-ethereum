@@ -18,6 +18,7 @@ package observer
 
 import (
 	"crypto/ecdsa"
+	"encoding/binary"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -29,12 +30,13 @@ import (
 )
 
 // -----
-// HEADER
+// BLOCK DATA
 // -----
 
-// Header contains the header fields of a block opposite to
-// internal data.
-type Header struct {
+// blockData contains the data fields of a block opposite to
+// internal data. Signature is based on the hash of the RLP encoding
+// of the struct while the Signature field is set to nil.
+type blockData struct {
 	PrevHash      common.Hash `json:"prevHash"      gencodec:"required"`
 	Number        uint64      `json:"number"        gencodec:"required"`
 	UnixTime      uint64      `json:"unixTime"      gencodec:"required"`
@@ -43,10 +45,23 @@ type Header struct {
 	Signature     []byte      `json:"signature"     gencodec:"required"`
 }
 
-// Hash returns the block hash of the header, which is simply the keccak256
+// hash returns the block hash of the header, which is simply the keccak256
 // hash of its RLP encoding.
-func (h *Header) Hash() common.Hash {
-	return rlpHash(h)
+func (d *blockData) hash() common.Hash {
+	return rlpHash(d)
+}
+
+// sign adds a signature to the block data by the given private key.
+func (d *blockData) Sign(privKey *ecdsa.PrivateKey) {
+	unsignedData := &blockData{
+		PrevHash:      d.PrevHash,
+		Number:        d.Number,
+		UnixTime:      d.UnixTime,
+		Statements:    d.Statements,
+		SignatureType: d.SignatureType,
+	}
+	rlp, _ := rlp.EncodeToBytes(unsignedData)
+	d.Signature, _ = crypto.Sign(crypto.Keccak256(rlp), privKey)
 }
 
 // -----
@@ -54,10 +69,8 @@ func (h *Header) Hash() common.Hash {
 // -----
 
 // Block represents one block on the observer chain.
-// Signature is based on the hash of the RLP encoding of
-// the struct while the "Signature" field is set to nil.
 type Block struct {
-	header *Header
+	data *blockData
 
 	// Caches.
 	hash atomic.Value
@@ -66,9 +79,9 @@ type Block struct {
 
 // NewBlock creates a new block.
 // TODO: More details about arguments.
-func NewBlock(txs []*Statement, privKey *ecdsa.PrivateKey) *Block {
+func NewBlock(s []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
-		header: &Header{
+		data: &blockData{
 			PrevHash:      common.Hash{},
 			Number:        0,
 			UnixTime:      uint64(time.Now().Unix()),
@@ -76,37 +89,30 @@ func NewBlock(txs []*Statement, privKey *ecdsa.PrivateKey) *Block {
 		},
 	}
 	if len(txs) == 0 {
-		b.header.Statements = types.EmptyRootHash
+		b.data.Statements = types.EmptyRootHash
 	} else {
-		b.header.Statements = types.DeriveSha(Statements(txs))
+		b.data.Statements = types.DeriveSha(Statements(s))
 	}
-	b.Sign(privKey)
+	b.data.sign(privKey)
 	return b
-}
-
-// Sign adds a signature to the block by the given private key.
-func (b *Block) Sign(privKey *ecdsa.PrivateKey) {
-	unsignedBlock := Block{
-		header: &Header{
-			PrevHash:      b.header.PrevHash,
-			Number:        b.header.Number,
-			UnixTime:      b.header.UnixTime,
-			Statements:    b.header.Statements,
-			SignatureType: b.header.SignatureType,
-		},
-	}
-	rlp, _ := rlp.EncodeToBytes(unsignedBlock)
-	b.header.Signature, _ = crypto.Sign(crypto.Keccak256(rlp), privKey)
 }
 
 // Number returns the block number as big.Int.
 func (b *Block) Number() *big.Int {
-	return new(big.Int).SetUint64(b.header.Number)
+	return new(big.Int).SetUint64(b.data.Number)
+}
+
+// EncodedNumber returns the block number in a big endian
+// encoded way.
+func (b *Block) EncodedNumber() []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, b.data.Number)
+	return enc
 }
 
 // Statements returns the hash of the block statements.
 func (b *Block) Statements() common.Hash {
-	return b.header.Statements
+	return b.data.Statements
 }
 
 // Hash returns the keccak256 hash of the block's header.
@@ -115,7 +121,7 @@ func (b *Block) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	v := b.header.Hash()
+	v := b.data.hash()
 	b.hash.Store(v)
 	return v
 }
