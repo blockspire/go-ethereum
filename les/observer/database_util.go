@@ -17,6 +17,8 @@
 package observer
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -32,13 +34,20 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 		return err
 	}
 
-	hash := block.Hash().Bytes()
-	num := block.Number().Uint64()
-	encNum := encodeBlockNumber(num)
+	hash := block.header.Hash().Bytes()
+	//num := block.Number().Uint64()
+	//encNum := encodeBlockNumber(num)
 	key := append(observerBlockHashPrefix, hash...)
 
 	if err := db.Put(key, data); err != nil {
 		log.Crit("Failed to store header", "err", err)
 	}
 	return nil
+}
+
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	//binary.BigEndian.PutUint64(enc, number)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
 }
