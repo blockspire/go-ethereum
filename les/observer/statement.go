@@ -78,49 +78,49 @@ func newStatement(key, value []byte) *Statement {
 }
 
 // Key returns copy of the statement key.
-func (s *Statement) Key() []byte {
-	return common.CopyBytes(s.kv.Key)
+func (st *Statement) Key() []byte {
+	return common.CopyBytes(st.kv.Key)
 }
 
 // Value returns copy of the statement value.
-func (s *Statement) Value() []byte {
-	return common.CopyBytes(s.kv.Value)
+func (st *Statement) Value() []byte {
+	return common.CopyBytes(st.kv.Value)
 }
 
 // EncodeRLP implements rlp.Encoder.
-func (s *Statement) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &s.kv)
+func (st *Statement) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, &st.kv)
 }
 
 // DecodeRLP implements rlp.Decoder.
-func (s *Statement) DecodeRLP(str *rlp.Stream) error {
-	_, size, _ := str.Kind()
-	err := str.Decode(&s.kv)
+func (st *Statement) DecodeRLP(s *rlp.Stream) error {
+	_, size, _ := s.Kind()
+	err := s.Decode(&st.kv)
 	if err == nil {
-		s.size.Store(common.StorageSize(rlp.ListSize(size)))
+		st.size.Store(common.StorageSize(rlp.ListSize(size)))
 	}
 	return err
 }
 
 // Hash hashes the RLP encoding of the statement.
 // It uniquely identifies it.
-func (s *Statement) Hash() common.Hash {
-	if hash := s.hash.Load(); hash != nil {
+func (st *Statement) Hash() common.Hash {
+	if hash := st.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	v := rlpHash(s)
-	s.hash.Store(v)
-	return v
+	h := rlpHash(st)
+	st.hash.Store(h)
+	return h
 }
 
 // Size returns the storage size of the statement.
-func (s *Statement) Size() common.StorageSize {
-	if size := s.size.Load(); size != nil {
+func (st *Statement) Size() common.StorageSize {
+	if size := st.size.Load(); size != nil {
 		return size.(common.StorageSize)
 	}
 	c := writeCounter(0)
-	rlp.Encode(&c, &s.kv)
-	s.size.Store(common.StorageSize(c))
+	rlp.Encode(&c, &st.kv)
+	st.size.Store(common.StorageSize(c))
 	return common.StorageSize(c)
 }
 
@@ -133,14 +133,14 @@ type Statements []*Statement
 
 // Len implements types.DerivableList and returns the number
 // of statements.
-func (s Statements) Len() int {
-	return len(s)
+func (sts Statements) Len() int {
+	return len(sts)
 }
 
 // GetRlp implements types.DerivableList and returns the i'th
 // statement of s in RLP encoding.
-func (s Statements) GetRlp(i int) []byte {
-	enc, _ := rlp.EncodeToBytes(s[i])
+func (sts Statements) GetRlp(i int) []byte {
+	enc, _ := rlp.EncodeToBytes(sts[i])
 	return enc
 }
 

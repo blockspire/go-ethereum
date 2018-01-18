@@ -52,7 +52,7 @@ func (d *blockData) hash() common.Hash {
 }
 
 // sign adds a signature to the block data by the given private key.
-func (d *blockData) Sign(privKey *ecdsa.PrivateKey) {
+func (d *blockData) sign(privKey *ecdsa.PrivateKey) {
 	unsignedData := &blockData{
 		PrevHash:      d.PrevHash,
 		Number:        d.Number,
@@ -79,7 +79,7 @@ type Block struct {
 
 // NewBlock creates a new block.
 // TODO: More details about arguments.
-func NewBlock(s []*Statement, privKey *ecdsa.PrivateKey) *Block {
+func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		data: &blockData{
 			PrevHash:      common.Hash{},
@@ -88,10 +88,10 @@ func NewBlock(s []*Statement, privKey *ecdsa.PrivateKey) *Block {
 			SignatureType: "ECDSA",
 		},
 	}
-	if len(txs) == 0 {
+	if len(sts) == 0 {
 		b.data.Statements = types.EmptyRootHash
 	} else {
-		b.data.Statements = types.DeriveSha(Statements(s))
+		b.data.Statements = types.DeriveSha(Statements(sts))
 	}
 	b.data.sign(privKey)
 	return b

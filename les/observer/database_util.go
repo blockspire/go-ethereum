@@ -34,7 +34,7 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 		return err
 	}
 
-	hash := block.header.Hash().Bytes()
+	hash := block.Hash().Bytes()
 	//num := block.Number().Uint64()
 	//encNum := encodeBlockNumber(num)
 	key := append(observerBlockHashPrefix, hash...)
