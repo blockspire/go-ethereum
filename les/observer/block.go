@@ -19,6 +19,7 @@ package observer
 import (
 	"crypto/ecdsa"
 	"encoding/binary"
+	"io"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -135,4 +136,21 @@ func (b *Block) Size() common.StorageSize {
 	rlp.Encode(&c, b)
 	b.size.Store(common.StorageSize(c))
 	return common.StorageSize(c)
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (b *Block) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, b.data)
+}
+
+// DecodeRLP implements rlp.Encoder.
+func (b *Block) DecodeRLP(s *rlp.Stream) error {
+	var data blockData
+	_, size, _ := s.Kind()
+	if err := s.Decode(&data); err != nil {
+		return err
+	}
+	b.data = &data
+	b.size.Store(common.StorageSize(rlp.ListSize(size)))
+	return nil
 }

@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/les/observer"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // -----
@@ -32,18 +33,33 @@ func TestStatement(t *testing.T) {
 	k := []byte("foo")
 	v := []byte("bar")
 	st := observer.NewStatement(k, v)
+	// Testing simple access.
 	if tk := st.Key(); !bytes.Equal(tk, k) {
 		t.Errorf("returned key %v is not value %v", tk, k)
 	}
 	if tv := st.Value(); !bytes.Equal(tv, v) {
 		t.Errorf("returned value %v is not value %v", tv, v)
 	}
+	// Testing encoding and decoding.
 	var b bytes.Buffer
 	err := st.EncodeRLP(&b)
 	if err != nil {
 		t.Errorf("encoding to RLP returned error: %v", err)
 	}
-	if b.Len() != 12 {
-		t.Errorf("buffer len is %v", b.Len())
+	var tst observer.Statement
+	err = tst.DecodeRLP(rlp.NewStream(&b, 0))
+	if err != nil {
+		t.Errorf("decoding from RLP returned error: %v", err)
+	}
+	if tk := tst.Key(); !bytes.Equal(tk, k) {
+		t.Errorf("returned decoded key %v is not value %v", tk, k)
+	}
+	if tv := tst.Value(); !bytes.Equal(tv, v) {
+		t.Errorf("returned decoded value %v is not value %v", tv, v)
+	}
+	sthb := st.Hash().Bytes()
+	tsthb := st.Hash().Bytes()
+	if !bytes.Equal(sthb, tsthb) {
+		t.Errorf("hashes of original and encoded/decoded one differ")
 	}
 }
