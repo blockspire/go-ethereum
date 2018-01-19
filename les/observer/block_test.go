@@ -18,6 +18,9 @@ package observer_test
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/les/observer"
@@ -41,13 +44,13 @@ func TestStatement(t *testing.T) {
 		t.Errorf("returned value %v is not value %v", tv, v)
 	}
 	// Testing encoding and decoding.
-	var b bytes.Buffer
-	err := st.EncodeRLP(&b)
+	var buf bytes.Buffer
+	err := st.EncodeRLP(&buf)
 	if err != nil {
 		t.Errorf("encoding to RLP returned error: %v", err)
 	}
 	var tst observer.Statement
-	err = tst.DecodeRLP(rlp.NewStream(&b, 0))
+	err = tst.DecodeRLP(rlp.NewStream(&buf, 0))
 	if err != nil {
 		t.Errorf("decoding from RLP returned error: %v", err)
 	}
@@ -61,5 +64,63 @@ func TestStatement(t *testing.T) {
 	tsthb := st.Hash().Bytes()
 	if !bytes.Equal(sthb, tsthb) {
 		t.Errorf("hashes of original and encoded/decoded one differ")
+	}
+}
+
+// TestEmptyBlock tests creating and accessing empty blocks.
+func TestEmptyBlock(t *testing.T) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+	b := observer.NewBlock(nil, privKey)
+	if b.Number().Uint64() != 0 {
+		t.Errorf("number of new block is not 0")
+	}
+	// Testing encoding and decoding.
+	var buf bytes.Buffer
+	err = b.EncodeRLP(&buf)
+	if err != nil {
+		t.Errorf("encoding to RLP returned error: %v", err)
+	}
+	var tb observer.Block
+	err = tb.DecodeRLP(rlp.NewStream(&buf, 0))
+	if err != nil {
+		t.Errorf("decoding from RLP returned error: %v", err)
+	}
+	if tb.Number().Uint64() != 0 {
+		t.Errorf("number of encoded/decoded block is not 0")
+	}
+}
+
+// TestStatementsBlock tests creating and accessing blocks
+// containing statements
+func TestStatementsBlock(t *testing.T) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+	sts := []*observer.Statement{
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
+	}
+	b := observer.NewBlock(sts, privKey)
+	if b.Number().Uint64() != 0 {
+		t.Errorf("number of new block is not 0")
+	}
+	// Testing encoding and decoding.
+	var buf bytes.Buffer
+	err = b.EncodeRLP(&buf)
+	if err != nil {
+		t.Errorf("encoding to RLP returned error: %v", err)
+	}
+	var tb observer.Block
+	err = tb.DecodeRLP(rlp.NewStream(&buf, 0))
+	if err != nil {
+		t.Errorf("decoding from RLP returned error: %v", err)
+	}
+	if tb.Number().Uint64() != 0 {
+		t.Errorf("number of encoded/decoded block is not 0")
 	}
 }

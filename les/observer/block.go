@@ -31,38 +31,38 @@ import (
 )
 
 // -----
-// BLOCK DATA
+// HEADER
 // -----
 
-// blockData contains the data fields of a block opposite to
+// Header contains the header fields of a block opposite to statements
 // internal data. Signature is based on the hash of the RLP encoding
 // of the struct while the Signature field is set to nil.
-type blockData struct {
-	PrevHash      common.Hash `json:"prevHash"      gencodec:"required"`
-	Number        uint64      `json:"number"        gencodec:"required"`
-	UnixTime      uint64      `json:"unixTime"      gencodec:"required"`
-	Statements    common.Hash `json:"statements"    gencodec:"required"`
-	SignatureType string      `json:"signatureType" gencodec:"required"`
-	Signature     []byte      `json:"signature"     gencodec:"required"`
+type Header struct {
+	PrevHash      common.Hash `json:"prevHash"       gencodec:"required"`
+	Number        uint64      `json:"number"         gencodec:"required"`
+	UnixTime      uint64      `json:"unixTime"       gencodec:"required"`
+	Statements    common.Hash `json:"statementsRoot" gencodec:"required"`
+	SignatureType string      `json:"signatureType"  gencodec:"required"`
+	Signature     []byte      `json:"signature"      gencodec:"required"`
 }
 
 // hash returns the block hash of the header, which is simply the keccak256
 // hash of its RLP encoding.
-func (d *blockData) hash() common.Hash {
-	return rlpHash(d)
+func (h *Header) hash() common.Hash {
+	return rlpHash(h)
 }
 
-// sign adds a signature to the block data by the given private key.
-func (d *blockData) sign(privKey *ecdsa.PrivateKey) {
-	unsignedData := &blockData{
-		PrevHash:      d.PrevHash,
-		Number:        d.Number,
-		UnixTime:      d.UnixTime,
-		Statements:    d.Statements,
-		SignatureType: d.SignatureType,
+// sign adds a signature to the block heater by the given private key.
+func (h *Header) sign(privKey *ecdsa.PrivateKey) {
+	unsignedData := &Header{
+		PrevHash:      h.PrevHash,
+		Number:        h.Number,
+		UnixTime:      h.UnixTime,
+		Statements:    h.Statements,
+		SignatureType: h.SignatureType,
 	}
 	rlp, _ := rlp.EncodeToBytes(unsignedData)
-	d.Signature, _ = crypto.Sign(crypto.Keccak256(rlp), privKey)
+	h.Signature, _ = crypto.Sign(crypto.Keccak256(rlp), privKey)
 }
 
 // -----
@@ -71,18 +71,26 @@ func (d *blockData) sign(privKey *ecdsa.PrivateKey) {
 
 // Block represents one block on the observer chain.
 type Block struct {
-	data *blockData
+	header     *Header
+	statements Statements
 
 	// Caches.
 	hash atomic.Value
 	size atomic.Value
 }
 
+// encBlock for encoding of block.
+type encBlock struct {
+	Header     *Header
+	Statements []*Statement
+}
+
 // NewBlock creates a new block.
 // TODO: More details about arguments.
+// QUESTION: Where will statements be saved.
 func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
-		data: &blockData{
+		header: &Header{
 			PrevHash:      common.Hash{},
 			Number:        0,
 			UnixTime:      uint64(time.Now().Unix()),
@@ -90,30 +98,32 @@ func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 		},
 	}
 	if len(sts) == 0 {
-		b.data.Statements = types.EmptyRootHash
+		b.header.Statements = types.EmptyRootHash
 	} else {
-		b.data.Statements = types.DeriveSha(Statements(sts))
+		b.header.Statements = types.DeriveSha(Statements(sts))
+		b.statements = make(Statements, len(sts))
+		copy(b.statements, sts)
 	}
-	b.data.sign(privKey)
+	b.header.sign(privKey)
 	return b
 }
 
 // Number returns the block number as big.Int.
 func (b *Block) Number() *big.Int {
-	return new(big.Int).SetUint64(b.data.Number)
+	return new(big.Int).SetUint64(b.header.Number)
 }
 
 // EncodedNumber returns the block number in a big endian
 // encoded way.
 func (b *Block) EncodedNumber() []byte {
 	enc := make([]byte, 8)
-	binary.BigEndian.PutUint64(enc, b.data.Number)
+	binary.BigEndian.PutUint64(enc, b.header.Number)
 	return enc
 }
 
 // Statements returns the hash of the block statements.
 func (b *Block) Statements() common.Hash {
-	return b.data.Statements
+	return b.header.Statements
 }
 
 // Hash returns the keccak256 hash of the block's header.
@@ -122,7 +132,7 @@ func (b *Block) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	v := b.data.hash()
+	v := b.header.hash()
 	b.hash.Store(v)
 	return v
 }
@@ -140,17 +150,21 @@ func (b *Block) Size() common.StorageSize {
 
 // EncodeRLP implements rlp.Encoder.
 func (b *Block) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, b.data)
+	return rlp.Encode(w, encBlock{
+		Header:     b.header,
+		Statements: b.statements,
+	})
 }
 
-// DecodeRLP implements rlp.Encoder.
+// DecodeRLP implements rlp.Decoder.
 func (b *Block) DecodeRLP(s *rlp.Stream) error {
-	var data blockData
+	var enc encBlock
 	_, size, _ := s.Kind()
-	if err := s.Decode(&data); err != nil {
+	if err := s.Decode(&enc); err != nil {
 		return err
 	}
-	b.data = &data
+	b.header = enc.Header
+	b.statements = enc.Statements
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
