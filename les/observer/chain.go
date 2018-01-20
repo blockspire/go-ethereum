@@ -17,6 +17,7 @@
 package observer
 
 import (
+	"encoding/binary"
 	"errors"
 	"time"
 
@@ -24,6 +25,16 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
+
+// ErrNoFirstBlock - ...
+var ErrNoFirstBlock = errors.New("First block not found in observer chain")
+
+// Config observer chain configuration
+type Config struct {
+	DBPath     string
+	FirstBlock *Block
+	PrivateKey string
+}
 
 // Chain ...
 type Chain struct {
@@ -33,23 +44,29 @@ type Chain struct {
 	currentBlok *Block
 }
 
-// NewChain returns a fully initialised Observer chain using information
-// available in the database
+// NewChain returns a fully initialised Observer chain
+// using information available in the database
 func NewChain(db ethdb.Database) (*Chain, error) {
-
 	oc := &Chain{
 		chainDb: db,
 	}
-	oc.firstBlock, _ = oc.Block(0)
-	if oc.firstBlock == nil {
-		return nil, errors.New("First block not found in observer chain")
-	}
+	// oc.firstBlock, _ = oc.Block(0)
+	// if oc.firstBlock == nil {
+	// 	return nil, ErrNoFirstBlock
+	// }
 	return oc, nil
 }
 
 // Block returns a single block by its
-func (o *Chain) Block(index uint64) (*Block, error) {
-	return &Block{}, nil
+func (o *Chain) Block(number uint64) (*Block, error) {
+	// canonicalHash := append(observerPrefix, encodeBlockNumber(number))
+
+	// hash := GetCanonicalHash(o.chainDb, number)
+	// if hash == (common.Hash{}) {
+	// 	return nil, nil
+	// }
+	// return o.GetBlock(hash, number)
+	return nil, nil
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
@@ -77,4 +94,10 @@ func (o *Chain) AutoCreateBlocks(period time.Duration) {
 // Close closes the chain
 func (o *Chain) Close() {
 
+}
+
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
 }

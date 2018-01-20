@@ -17,37 +17,43 @@
 package observer
 
 import (
-	"encoding/binary"
+	"bytes"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var observerBlockHashPrefix = []byte("o") // observerBlockHashPrefix + hash -> num (uint64 big endian)
+var (
+	observerPrefix = []byte("obs-")      // observerBlockHashPrefix + hash -> num (uint64 big endian)
+	lastBlockKey   = []byte("LastBlock") // keeps track of the last observer block
+)
 
 // WriteBlock serializes and writes block into the database
-// TODO: make it work :)
 func WriteBlock(db ethdb.Putter, block *Block) error {
-	data, err := rlp.EncodeToBytes(block)
+	var buf bytes.Buffer
+	err := block.EncodeRLP(&buf)
 	if err != nil {
 		return err
 	}
-
 	hash := block.Hash().Bytes()
-	//num := block.Number().Uint64()
-	//encNum := encodeBlockNumber(num)
-	key := append(observerBlockHashPrefix, hash...)
-
-	if err := db.Put(key, data); err != nil {
-		log.Crit("Failed to store header", "err", err)
+	key := append(observerPrefix, hash...)
+	if err := db.Put(key, buf.Bytes()); err != nil {
+		log.Crit("Failed to store observer block data", "err", err)
 	}
 	return nil
 }
 
-func encodeBlockNumber(number uint64) []byte {
-	enc := make([]byte, 8)
-	//binary.BigEndian.PutUint64(enc, number)
-	binary.BigEndian.PutUint64(enc, number)
-	return enc
+// WriteHeadObserverBlockHash writes last block hash to DB under key headBlockKey
+func WriteHeadObserverBlockHash(db ethdb.Putter, hash common.Hash) error {
+	if err := db.Put(lastBlockKey, hash.Bytes()); err != nil {
+		log.Crit("Failed to store last observer block's hash", "err", err)
+	}
+	return nil
+}
+
+// ReadBlock reads one block from the database
+// TODO: make it work
+func ReadBlock(number uint64) *Block {
+	return nil
 }

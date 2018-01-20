@@ -14,60 +14,66 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package observer
+package observer_test
 
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/les/observer"
 )
 
-func TestNewChainHasNoFirstBlock(t *testing.T) {
+func TestCanPersistBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
-	c, err := NewChain(testdb)
+	//testdb, _ := ethdb.NewLDBDatabase("./xxx", 10, 256)
+
+	sts := []*observer.Statement{
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
+	}
+
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	firstBlock := observer.NewBlock(sts, privKey)
+	if err := observer.WriteBlock(testdb, firstBlock); err != nil {
+		t.Errorf("WriteBlock error = %v", err)
+	}
+}
+
+func TestWeCanRetrievePersisedBlock(t *testing.T) {
+	testdb, _ := ethdb.NewMemDatabase()
+	//testdb, _ := ethdb.NewLDBDatabase("./xxx", 10, 256)
+
+	sts := []*observer.Statement{
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
+	}
+
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	firstBlock := observer.NewBlock(sts, privKey)
+	if err := observer.WriteBlock(testdb, firstBlock); err != nil {
+		t.Errorf("WriteBlock error = %v", err)
+	}
+
+	c, err := observer.NewChain(testdb)
 	if err != nil {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-	b, err := c.Block(0)
-	if err != nil {
-		t.Errorf("Block retrieval returned error %s", err)
-	}
-	if b != nil {
-		t.Errorf("Empty chain has a block error")
-	}
+	t.Log(c)
+	// retrievedBlock, err := c.Block(uint64(0))
+	// if err != nil {
+	// 	t.Errorf("Retrieve block error = %v", err)
+	// }
+	// t.Log(retrievedBlock.Number())
 }
-
-// func TestNewChain(t *testing.T) {
-
-// 	var testdb, _ = ethdb.NewMemDatabase()
-
-// 	type args struct {
-// 		db ethdb.Database
-// 	}
-
-// 	tests := []struct {
-// 		name    string
-// 		args    args
-// 		want    int64
-// 		wantErr bool
-// 	}{
-// 		{"No initial blocks", args{db: testdb}, 1, false},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			c, err := NewChain(tt.args.db)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("NewChain() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			b, _ := c.Block(0)
-// 			if b != nil {
-// 				t.Errorf("NewChain() has block :(")
-// 			}
-// 			//if !reflect.DeepEqual(got, tt.want) {
-// 			//	t.Errorf("NewChain() = %v, want %v", got, tt.want)
-// 			//}
-// 		})
-// 	}
-// }
