@@ -33,15 +33,11 @@ import (
 
 // TestStatement tests creating and accessing statements.
 func TestStatement(t *testing.T) {
-	k := []byte("foo")
-	v := []byte("bar")
-	st := observer.NewStatement(k, v)
+	pl := []byte("foobar")
+	st := observer.NewStatement(pl)
 	// Testing simple access.
-	if tk := st.Key(); !bytes.Equal(tk, k) {
-		t.Errorf("returned key %v is not value %v", tk, k)
-	}
-	if tv := st.Value(); !bytes.Equal(tv, v) {
-		t.Errorf("returned value %v is not value %v", tv, v)
+	if tpl := st.Payload(); !bytes.Equal(tpl, pl) {
+		t.Errorf("returned payload %v is not payload %v", tpl, pl)
 	}
 	// Testing encoding and decoding.
 	var buf bytes.Buffer
@@ -54,14 +50,11 @@ func TestStatement(t *testing.T) {
 	if err != nil {
 		t.Errorf("decoding from RLP returned error: %v", err)
 	}
-	if tk := tst.Key(); !bytes.Equal(tk, k) {
-		t.Errorf("returned decoded key %v is not value %v", tk, k)
-	}
-	if tv := tst.Value(); !bytes.Equal(tv, v) {
-		t.Errorf("returned decoded value %v is not value %v", tv, v)
+	if tpl := tst.Payload(); !bytes.Equal(tpl, pl) {
+		t.Errorf("returned decoded payload %v is not payload %v", tpl, pl)
 	}
 	sthb := st.Hash().Bytes()
-	tsthb := st.Hash().Bytes()
+	tsthb := tst.Hash().Bytes()
 	if !bytes.Equal(sthb, tsthb) {
 		t.Errorf("hashes of original and encoded/decoded one differ")
 	}
@@ -101,9 +94,9 @@ func TestStatementsBlock(t *testing.T) {
 		t.Errorf("generation of private key failed")
 	}
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
+		observer.NewStatement([]byte("foo")),
+		observer.NewStatement([]byte("bar")),
+		observer.NewStatement([]byte("baz")),
 	}
 	b := observer.NewBlock(sts, privKey)
 	if b.Number().Uint64() != 0 {

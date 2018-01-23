@@ -32,17 +32,16 @@ import (
 
 // Statement contains a combination of key and value.
 type Statement struct {
-	kv keyValue
+	pl payload
 
 	// Caches.
 	hash atomic.Value
 	size atomic.Value
 }
 
-// keyValue manages the key and value data of a statement.
-type keyValue struct {
-	Key   []byte `json:"key"   gencodec:"required"`
-	Value []byte `json:"value" gencodec:"required"`
+// payload manages the payload data of a statement.
+type payload struct {
+	Payload []byte `json:"payload" gencodec:"required"`
 
 	// Signature values.
 	V *big.Int `json:"v" gencodec:"required"`
@@ -50,52 +49,43 @@ type keyValue struct {
 	S *big.Int `json:"s" gencodec:"required"`
 }
 
-// NewStatement creates a standard statement with key and value.
-func NewStatement(key, value []byte) *Statement {
-	return newStatement(key, value)
+// NewStatement creates a standard statement with a payload.
+func NewStatement(payload []byte) *Statement {
+	return newStatement(payload)
 }
 
 // newStatement is the private constructor for the different types
 // of statements.
-func newStatement(key, value []byte) *Statement {
-	// Create modifiable copies of key and value.
-	if len(key) > 0 {
-		key = common.CopyBytes(key)
+func newStatement(data []byte) *Statement {
+	// Create modifiable copy.
+	if len(data) > 0 {
+		data = common.CopyBytes(data)
 	}
-	if len(value) > 0 {
-		value = common.CopyBytes(value)
-	}
-	kv := keyValue{
-		Key:   key,
-		Value: value,
-		V:     new(big.Int),
-		R:     new(big.Int),
-		S:     new(big.Int),
+	pl := payload{
+		Payload: data,
+		V:       new(big.Int),
+		R:       new(big.Int),
+		S:       new(big.Int),
 	}
 	return &Statement{
-		kv: kv,
+		pl: pl,
 	}
 }
 
-// Key returns copy of the statement key.
-func (st *Statement) Key() []byte {
-	return common.CopyBytes(st.kv.Key)
-}
-
-// Value returns copy of the statement value.
-func (st *Statement) Value() []byte {
-	return common.CopyBytes(st.kv.Value)
+// Payload returns copy of the statement payload.
+func (st *Statement) Payload() []byte {
+	return common.CopyBytes(st.pl.Payload)
 }
 
 // EncodeRLP implements rlp.Encoder.
 func (st *Statement) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &st.kv)
+	return rlp.Encode(w, &st.pl)
 }
 
 // DecodeRLP implements rlp.Decoder.
 func (st *Statement) DecodeRLP(s *rlp.Stream) error {
 	_, size, _ := s.Kind()
-	err := s.Decode(&st.kv)
+	err := s.Decode(&st.pl)
 	if err == nil {
 		st.size.Store(common.StorageSize(rlp.ListSize(size)))
 	}
@@ -119,7 +109,7 @@ func (st *Statement) Size() common.StorageSize {
 		return size.(common.StorageSize)
 	}
 	c := writeCounter(0)
-	rlp.Encode(&c, &st.kv)
+	rlp.Encode(&c, &st.pl)
 	st.size.Store(common.StorageSize(c))
 	return common.StorageSize(c)
 }

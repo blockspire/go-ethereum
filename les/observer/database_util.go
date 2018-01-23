@@ -17,14 +17,39 @@
 package observer
 
 import (
+	"bytes"
 	"encoding/binary"
 
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var observerBlockHashPrefix = []byte("o") // observerBlockHashPrefix + hash -> num (uint64 big endian)
+
+// GetBlock retrieves an entire block corresponding to the number, assembling it
+// back from the stored header (and statements?). If either the header or body could
+// not be retrieved nil is returned.
+func GetBlock(db trie.DatabaseReader, number uint64) *Block {
+	data := GetBlockRLP(db, number)
+	if len(data) == 0 {
+		return nil
+	}
+	b := new(Block)
+	if err := rlp.Decode(bytes.NewReader(data), b); err != nil {
+		log.Error("Invalid block RLP", "number", number, "err", err)
+		return nil
+	}
+	return b
+}
+
+// GetBlockRLP retrieves a block in its raw RLP database encoding, or nil
+// if the header's not found.
+func GetBlockRLP(db trie.DatabaseReader, number uint64) rlp.RawValue {
+	data, _ := db.Get(observerKey(number))
+	return data
+}
 
 // WriteBlock serializes and writes block into the database
 // TODO: make it work :)
@@ -45,9 +70,13 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 	return nil
 }
 
-func encodeBlockNumber(number uint64) []byte {
+// -----
+// HELPER
+// -----
+
+// observerKey calculates the observer key for a given block number.
+func observerKey(number uint64) []byte {
 	enc := make([]byte, 8)
-	//binary.BigEndian.PutUint64(enc, number)
 	binary.BigEndian.PutUint64(enc, number)
-	return enc
+	return append(observerBlockHashPrefix, enc...)
 }

@@ -33,7 +33,7 @@ func TestNewChainHasNoFirstBlock(t *testing.T) {
 	if err != nil {
 		t.Errorf("Block retrieval returned error %s", err)
 	}
-	if b != nil {
+	if b == nil {
 		t.Errorf("Empty chain has a block error")
 	}
 }

@@ -40,8 +40,8 @@ import (
 type Header struct {
 	PrevHash      common.Hash `json:"prevHash"       gencodec:"required"`
 	Number        uint64      `json:"number"         gencodec:"required"`
-	UnixTime      uint64      `json:"unixTime"       gencodec:"required"`
-	Statements    common.Hash `json:"statementsRoot" gencodec:"required"`
+	Time          uint64      `json:"time"           gencodec:"required"`
+	Root          common.Hash `json:"statementsRoot" gencodec:"required"`
 	SignatureType string      `json:"signatureType"  gencodec:"required"`
 	Signature     []byte      `json:"signature"      gencodec:"required"`
 }
@@ -57,8 +57,8 @@ func (h *Header) sign(privKey *ecdsa.PrivateKey) {
 	unsignedData := &Header{
 		PrevHash:      h.PrevHash,
 		Number:        h.Number,
-		UnixTime:      h.UnixTime,
-		Statements:    h.Statements,
+		Time:          h.Time,
+		Root:          h.Root,
 		SignatureType: h.SignatureType,
 	}
 	rlp, _ := rlp.EncodeToBytes(unsignedData)
@@ -87,24 +87,32 @@ type encBlock struct {
 
 // NewBlock creates a new block.
 // TODO: More details about arguments.
-// QUESTION: Where will statements be saved.
 func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		header: &Header{
 			PrevHash:      common.Hash{},
 			Number:        0,
-			UnixTime:      uint64(time.Now().Unix()),
+			Time:          uint64(time.Now().Unix()),
 			SignatureType: "ECDSA",
 		},
 	}
 	if len(sts) == 0 {
-		b.header.Statements = types.EmptyRootHash
+		b.header.Root = types.EmptyRootHash
 	} else {
-		b.header.Statements = types.DeriveSha(Statements(sts))
+		b.header.Root = types.DeriveSha(Statements(sts))
 		b.statements = make(Statements, len(sts))
 		copy(b.statements, sts)
 	}
 	b.header.sign(privKey)
+	return b
+}
+
+// NewBlockWithHeader creates a new block based on the passed header.
+// TODO: Header copy needed?
+func NewBlockWithHeader(header *Header) *Block {
+	b := &Block{
+		header: header,
+	}
 	return b
 }
 
@@ -121,9 +129,14 @@ func (b *Block) EncodedNumber() []byte {
 	return enc
 }
 
-// Statements returns the hash of the block statements.
-func (b *Block) Statements() common.Hash {
-	return b.header.Statements
+// Time returns the block time as big.Int.
+func (b *Block) Time() *big.Int {
+	return new(big.Int).SetUint64(b.header.Time)
+}
+
+// Root returns the root hash of the block statements.
+func (b *Block) Root() common.Hash {
+	return b.header.Root
 }
 
 // Hash returns the keccak256 hash of the block's header.
@@ -166,5 +179,15 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	b.header = enc.Header
 	b.statements = enc.Statements
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
+	return nil
+}
+
+// Statement returns the statement with the passed hash.
+func (b *Block) Statement(hash common.Hash) *Statement {
+	for _, statement := range b.statements {
+		if statement.Hash() == hash {
+			return statement
+		}
+	}
 	return nil
 }
