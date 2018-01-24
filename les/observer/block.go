@@ -41,7 +41,7 @@ type Header struct {
 	PrevHash      common.Hash `json:"prevHash"       gencodec:"required"`
 	Number        uint64      `json:"number"         gencodec:"required"`
 	Time          uint64      `json:"time"           gencodec:"required"`
-	Root          common.Hash `json:"statementsRoot" gencodec:"required"`
+	StmtsRoot     common.Hash `json:"stmtsRoot"      gencodec:"required"`
 	SignatureType string      `json:"signatureType"  gencodec:"required"`
 	Signature     []byte      `json:"signature"      gencodec:"required"`
 }
@@ -58,7 +58,7 @@ func (h *Header) sign(privKey *ecdsa.PrivateKey) {
 		PrevHash:      h.PrevHash,
 		Number:        h.Number,
 		Time:          h.Time,
-		Root:          h.Root,
+		StmtsRoot:     h.StmtsRoot,
 		SignatureType: h.SignatureType,
 	}
 	rlp, _ := rlp.EncodeToBytes(unsignedData)
@@ -87,7 +87,7 @@ type encBlock struct {
 
 // NewBlock creates a new block.
 // TODO: More details about arguments.
-func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
+func NewBlock(stmts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		header: &Header{
 			PrevHash:      common.Hash{},
@@ -96,12 +96,12 @@ func NewBlock(sts []*Statement, privKey *ecdsa.PrivateKey) *Block {
 			SignatureType: "ECDSA",
 		},
 	}
-	if len(sts) == 0 {
-		b.header.Root = types.EmptyRootHash
+	if len(stmts) == 0 {
+		b.header.StmtsRoot = types.EmptyRootHash
 	} else {
-		b.header.Root = types.DeriveSha(Statements(sts))
-		b.statements = make(Statements, len(sts))
-		copy(b.statements, sts)
+		b.header.StmtsRoot = types.DeriveSha(Statements(stmts))
+		b.statements = make(Statements, len(stmts))
+		copy(b.statements, stmts)
 	}
 	b.header.sign(privKey)
 	return b
@@ -134,9 +134,9 @@ func (b *Block) Time() *big.Int {
 	return new(big.Int).SetUint64(b.header.Time)
 }
 
-// Root returns the root hash of the block statements.
-func (b *Block) Root() common.Hash {
-	return b.header.Root
+// StmtsRoot returns the root hash of the block statements.
+func (b *Block) StmtsRoot() common.Hash {
+	return b.header.StmtsRoot
 }
 
 // Hash returns the keccak256 hash of the block's header.
@@ -182,10 +182,11 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// Statement returns the statement with the passed hash.
-func (b *Block) Statement(hash common.Hash) *Statement {
+// Statement returns the statement addressed by the passed hash
+// as key.
+func (b *Block) Statement(key common.Hash) *Statement {
 	for _, statement := range b.statements {
-		if statement.Hash() == hash {
+		if statement.Hash() == key {
 			return statement
 		}
 	}

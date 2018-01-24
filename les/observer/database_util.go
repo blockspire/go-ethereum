@@ -28,13 +28,19 @@ import (
 )
 
 var (
-	observerPrefix = []byte("obs-")      // observerBlockHashPrefix + hash -> num (uint64 big endian)
+	observerPrefix = []byte("obs-") // observerBlockHashPrefix + hash -> num (uint64 big endian)
+	lookupPrefix   = []byte("obsl-")
 	lastBlockKey   = []byte("LastBlock") // keeps track of the last observer block
 )
 
-// GetBlock retrieves an entire block corresponding to the number, assembling it
-// back from the stored header (and statements?). If either the header or body could
-// not be retrieved nil is returned.
+// StmtLookupEntry is a positional metadata to help looking up the data content of
+// a statement given only its hash.
+type StmtLookupEntry struct {
+	BlockHash common.Hash
+	Index     uint64
+}
+
+// GetBlock retrieves an entire block corresponding to the number.
 func GetBlock(db trie.DatabaseReader, number uint64) *Block {
 	data := GetBlockRLP(db, number)
 	if len(data) == 0 {
@@ -48,11 +54,50 @@ func GetBlock(db trie.DatabaseReader, number uint64) *Block {
 	return b
 }
 
+// GetBlockByHash retrieves a block by hash.
+func GetBlockByHash(db trie.DatabaseReader, hash common.Hash) *Block {
+	// TODO: Implement!
+	return nil
+}
+
 // GetBlockRLP retrieves a block in its raw RLP database encoding, or nil
 // if the header's not found.
 func GetBlockRLP(db trie.DatabaseReader, number uint64) rlp.RawValue {
 	data, _ := db.Get(observerKey(number))
 	return data
+}
+
+// GetStmtLookupEntry retrieves the positional metadata associated with a
+// statement hash to allow retrieving the statement by hash.
+func GetStmtLookupEntry(db trie.DatabaseReader, hash common.Hash) (common.Hash, uint64) {
+	// Load the positional metadata from disk and bail if it fails.
+	data, _ := db.Get(append(lookupPrefix, hash.Bytes()...))
+	if len(data) == 0 {
+		return common.Hash{}, 0
+	}
+	// Parse and return the contents of the lookup entry.
+	var entry StmtLookupEntry
+	if err := rlp.DecodeBytes(data, &entry); err != nil {
+		log.Error("Invalid lookup entry RLP", "hash", hash, "err", err)
+		return common.Hash{}, 0
+	}
+	return entry.BlockHash, entry.Index
+}
+
+// GetStatement retrieves a specific statement from the database, along with
+// its added positional metadata.
+func GetStatement(db trie.DatabaseReader, hash common.Hash) (*Statement, common.Hash, uint64) {
+	// Retrieve hash of the block
+	blockHash, stmtIndex := GetStmtLookupEntry(db, hash)
+	if blockHash != (common.Hash{}) {
+		block := GetBlockByHash(db, blockHash)
+		if block == nil || len(block.statements) <= int(stmtIndex) {
+			log.Error("Transaction referenced missing", "hash", blockHash, "index", stmtIndex)
+			return nil, common.Hash{}, 0
+		}
+		return block.statements[stmtIndex], blockHash, stmtIndex
+	}
+	return nil, common.Hash{}, 0
 }
 
 // WriteBlock serializes and writes block into the database
