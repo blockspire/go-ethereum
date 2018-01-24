@@ -29,7 +29,7 @@ import (
 
 var (
 	observerPrefix = []byte("obs-")      // observerBlockHashPrefix + hash -> num (uint64 big endian)
-	lastBlockKey   = []byte("LastBlock") // keeps track of the last observer block
+	lastBlockKey   = []byte("lastBlock") // keeps track of the last observer block
 )
 
 // GetBlock retrieves an entire block corresponding to the number, assembling it
@@ -62,16 +62,15 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 	if err != nil {
 		return err
 	}
-	hash := block.Hash().Bytes()
-	key := append(observerPrefix, hash...)
-	if err := db.Put(key, buf.Bytes()); err != nil {
+	//key := append(observerPrefix, encodeBlockNumber(block.header.Number)...)
+	if err := db.Put(observerKey(block.header.Number), buf.Bytes()); err != nil {
 		log.Crit("Failed to store observer block data", "err", err)
 	}
 	return nil
 }
 
-// WriteHeadObserverBlockHash writes last block hash to DB under key headBlockKey
-func WriteHeadObserverBlockHash(db ethdb.Putter, hash common.Hash) error {
+// WriteLastObserverBlockHash writes last block hash to DB under key headBlockKey
+func WriteLastObserverBlockHash(db ethdb.Putter, hash common.Hash) error {
 	if err := db.Put(lastBlockKey, hash.Bytes()); err != nil {
 		log.Crit("Failed to store last observer block's hash", "err", err)
 	}
@@ -83,8 +82,15 @@ func WriteHeadObserverBlockHash(db ethdb.Putter, hash common.Hash) error {
 // -----
 
 // observerKey calculates the observer key for a given block number.
+// ex: obs-0, obs-124
 func observerKey(number uint64) []byte {
 	enc := make([]byte, 8)
 	binary.BigEndian.PutUint64(enc, number)
 	return append(observerPrefix, enc...)
+}
+
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
 }

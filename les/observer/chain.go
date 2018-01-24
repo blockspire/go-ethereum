@@ -17,7 +17,7 @@
 package observer
 
 import (
-	"encoding/binary"
+	"crypto/ecdsa"
 	"errors"
 	"time"
 
@@ -29,44 +29,19 @@ import (
 // ErrNoFirstBlock - ...
 var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 
-// Config observer chain configuration
-type Config struct {
-	DBPath     string
-	FirstBlock *Block
-	PrivateKey string
-}
-
 // Chain ...
 type Chain struct {
 	config      *params.ChainConfig // Do we need any configuration?
 	chainDb     ethdb.Database
 	firstBlock  *Block
 	currentBlok *Block
-}
-
-// NewChain returns a fully initialised Observer chain
-// using information available in the database
-func NewChain(db ethdb.Database) (*Chain, error) {
-	oc := &Chain{
-		chainDb: db,
-	}
-	// oc.firstBlock, _ = oc.Block(0)
-	// if oc.firstBlock == nil {
-	// 	return nil, ErrNoFirstBlock
-	// }
-	return oc, nil
+	PrivateKey  *ecdsa.PrivateKey
 }
 
 // Block returns a single block by its
 func (o *Chain) Block(number uint64) (*Block, error) {
-	// canonicalHash := append(observerPrefix, encodeBlockNumber(number))
-
-	// hash := GetCanonicalHash(o.chainDb, number)
-	// if hash == (common.Hash{}) {
-	// 	return nil, nil
-	// }
-	// return o.GetBlock(hash, number)
-	return nil, nil
+	b := GetBlock(o.chainDb, number)
+	return b, nil
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
@@ -96,8 +71,23 @@ func (o *Chain) Close() {
 
 }
 
-func encodeBlockNumber(number uint64) []byte {
-	enc := make([]byte, 8)
-	binary.BigEndian.PutUint64(enc, number)
-	return enc
+// NewChain returns a fully initialised Observer chain
+// using information available in the database
+func NewChain(db ethdb.Database) (*Chain, error) {
+	oc := &Chain{
+		chainDb: db,
+	}
+	oc.firstBlock, _ = oc.Block(0)
+	if oc.firstBlock == nil {
+		// We have to create the first block
+		header := Header{Number: 0}
+		b := NewBlockWithHeader(&header)
+		oc.firstBlock = b
+		oc.currentBlok = b
+		err := WriteBlock(db, oc.firstBlock)
+		if err != nil {
+			return oc, err
+		}
+	}
+	return oc, nil
 }
