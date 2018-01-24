@@ -24,14 +24,32 @@ import (
 	"github.com/ethereum/go-ethereum/les/observer"
 )
 
-func TestCanPersistBlock(t *testing.T) {
+func TestNewChainHasFistBlockWithNumberZero(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 	//testdb, _ := ethdb.NewLDBDatabase("./xxx", 10, 256)
 
+	c, err := observer.NewChain(testdb)
+	if err != nil {
+		t.Errorf("NewChain() error = %v", err)
+		return
+	}
+
+	firstBlock, err := c.Block(uint64(0))
+	if err != nil {
+		t.Errorf("Retrieve block error = %v", err)
+	}
+	if firstBlock.Number().Uint64() != 0 {
+		t.Errorf("number of new block is not 0")
+	}
+}
+
+func TestCanPersistBlock(t *testing.T) {
+	testdb, _ := ethdb.NewMemDatabase()
+
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
+		observer.NewStatement([]byte("foo")),
+		observer.NewStatement([]byte("bar")),
+		observer.NewStatement([]byte("baz")),
 	}
 
 	privKey, err := crypto.GenerateKey()
@@ -47,12 +65,11 @@ func TestCanPersistBlock(t *testing.T) {
 
 func TestWeCanRetrievePersisedBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
-	//testdb, _ := ethdb.NewLDBDatabase("./xxx", 10, 256)
 
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
+		observer.NewStatement([]byte("foo")),
+		observer.NewStatement([]byte("bar")),
+		observer.NewStatement([]byte("baz")),
 	}
 
 	privKey, err := crypto.GenerateKey()
@@ -70,10 +87,10 @@ func TestWeCanRetrievePersisedBlock(t *testing.T) {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-	t.Log(c)
-	// retrievedBlock, err := c.Block(uint64(0))
-	// if err != nil {
-	// 	t.Errorf("Retrieve block error = %v", err)
-	// }
-	// t.Log(retrievedBlock.Number())
+
+	fBlock, err := c.Block(uint64(0))
+	if err != nil {
+		t.Errorf("Retrieve block error = %v", err)
+	}
+	t.Log(fBlock.Number())
 }
