@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -31,16 +30,18 @@ var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 
 // Chain ...
 type Chain struct {
-	config      *params.ChainConfig // Do we need any configuration?
 	chainDb     ethdb.Database
-	firstBlock  *Block
-	currentBlok *Block
+	FirstBlock  *Block
+	CurrentBlok *Block
 	PrivateKey  *ecdsa.PrivateKey
 }
 
 // Block returns a single block by its
 func (o *Chain) Block(number uint64) (*Block, error) {
 	b := GetBlock(o.chainDb, number)
+	if b == nil {
+		return nil, nil
+	}
 	return b, nil
 }
 
@@ -73,21 +74,19 @@ func (o *Chain) Close() {
 
 // NewChain returns a fully initialised Observer chain
 // using information available in the database
-func NewChain(db ethdb.Database) (*Chain, error) {
+func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
 	oc := &Chain{
-		chainDb: db,
+		PrivateKey: privKey,
+		chainDb:    db,
 	}
-	oc.firstBlock, _ = oc.Block(0)
-	if oc.firstBlock == nil {
-		// We have to create the first block
-		header := Header{Number: 0}
-		b := NewBlockWithHeader(&header)
-		oc.firstBlock = b
-		oc.currentBlok = b
-		err := WriteBlock(db, oc.firstBlock)
-		if err != nil {
-			return oc, err
-		}
+	firstBlock := GetBlock(db, 0)
+	if firstBlock == nil {
+		firstBlock = NewBlock([]*Statement{}, privKey)
+	}
+	oc.FirstBlock = firstBlock
+	oc.CurrentBlok = firstBlock
+	if WriteLastObserverBlockHash(db, firstBlock.Hash()) != nil {
+		return nil, nil
 	}
 	return oc, nil
 }

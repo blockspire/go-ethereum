@@ -28,18 +28,19 @@ func TestNewChainHasFistBlockWithNumberZero(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 	//testdb, _ := ethdb.NewLDBDatabase("./xxx", 10, 256)
 
-	c, err := observer.NewChain(testdb)
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	c, err := observer.NewChain(testdb, privKey)
 	if err != nil {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
 
-	firstBlock, err := c.Block(uint64(0))
-	if err != nil {
-		t.Errorf("Retrieve block error = %v", err)
-	}
-	if firstBlock.Number().Uint64() != 0 {
-		t.Errorf("number of new block is not 0")
+	if c.FirstBlock.Number().Uint64() != 0 {
+		t.Errorf("First block number is not zero")
 	}
 }
 
@@ -66,31 +67,20 @@ func TestCanPersistBlock(t *testing.T) {
 func TestWeCanRetrievePersisedBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 
-	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
-	}
-
 	privKey, err := crypto.GenerateKey()
 	if err != nil {
 		t.Errorf("generation of private key failed")
 	}
 
-	firstBlock := observer.NewBlock(sts, privKey)
-	if err := observer.WriteBlock(testdb, firstBlock); err != nil {
-		t.Errorf("WriteBlock error = %v", err)
-	}
-
-	c, err := observer.NewChain(testdb)
+	c, err := observer.NewChain(testdb, privKey)
 	if err != nil {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-
-	fBlock, err := c.Block(uint64(0))
-	if err != nil {
-		t.Errorf("Retrieve block error = %v", err)
-	}
-	t.Log(fBlock.Number())
+	t.Log(c)
+	// fBlock, err := c.Block(0)
+	// if err != nil {
+	// 	t.Errorf("Retrieve block error = %v", err)
+	// }
+	// t.Log(fBlock.Number())
 }
