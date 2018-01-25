@@ -28,21 +28,21 @@ import (
 )
 
 var (
-	observerPrefix = []byte("obs-")      // observerBlockHashPrefix + hash -> num (uint64 big endian)
-	lookupPrefix   = []byte("obsl-")     // lookup of observer statement keys to block hashes
-	lastBlockKey   = []byte("lastBlock") // keeps track of the last observer block
+	blockPrefix      = []byte("obs-")      // blockPrefix + num -> Block
+	stmtLookupPrefix = []byte("obssl-")    // stmtLookupPrefix + key -> StmtLookupEntry
+	lastBlockKey     = []byte("lastBlock") // keeps track of the last observer block
 )
 
-// StmtLookupEntry is a positional metadata to help looking up the data content of
-// a statement given only its hash.
+// StmtLookupEntry is a positional metadata to help looking up the statement
+// inside its block.
 type StmtLookupEntry struct {
-	BlockHash common.Hash
-	Index     uint64
+	BlockNumber uint64
+	Index       uint64
 }
 
 // GetBlock retrieves an entire block corresponding to the number.
 func GetBlock(db trie.DatabaseReader, number uint64) *Block {
-	data := GetBlockRLP(db, number)
+	data, _ := db.Get(mkBlockKey(number))
 	if len(data) == 0 {
 		return nil
 	}
@@ -54,50 +54,41 @@ func GetBlock(db trie.DatabaseReader, number uint64) *Block {
 	return b
 }
 
-// GetBlockByHash retrieves a block by hash.
-func GetBlockByHash(db trie.DatabaseReader, hash common.Hash) *Block {
-	// TODO: Implement!
-	return nil
-}
-
-// GetBlockRLP retrieves a block in its raw RLP database encoding, or nil
-// if the header's not found.
-func GetBlockRLP(db trie.DatabaseReader, number uint64) rlp.RawValue {
-	data, _ := db.Get(observerKey(number))
-	return data
-}
-
-// GetStmtLookupEntry retrieves the positional metadata associated with a
-// statement hash to allow retrieving the statement by hash.
-func GetStmtLookupEntry(db trie.DatabaseReader, hash common.Hash) (common.Hash, uint64) {
-	// Load the positional metadata from disk and bail if it fails.
-	data, _ := db.Get(append(lookupPrefix, hash.Bytes()...))
+// GetStmtLookupEntry retrieves block number and index of a statement.
+func GetStmtLookupEntry(db trie.DatabaseReader, key []byte) (uint64, uint64, bool) {
+	// Retrieve lookup entry.
+	data, _ := db.Get(mkStmtLookupKey(key))
 	if len(data) == 0 {
-		return common.Hash{}, 0
+		log.Error("Cannot find statement lookup", "key", key)
+		return 0, 0, false
 	}
-	// Parse and return the contents of the lookup entry.
+	// Decode it.
 	var entry StmtLookupEntry
 	if err := rlp.DecodeBytes(data, &entry); err != nil {
-		log.Error("Invalid lookup entry RLP", "hash", hash, "err", err)
-		return common.Hash{}, 0
+		log.Error("Invalid lookup entry RLP", "key", key, "err", err)
+		return 0, 0, false
 	}
-	return entry.BlockHash, entry.Index
+	return entry.BlockNumber, entry.Index, true
 }
 
-// GetStatement retrieves a specific statement from the database, along with
-// its added positional metadata.
-func GetStatement(db trie.DatabaseReader, hash common.Hash) (*Statement, common.Hash, uint64) {
-	// Retrieve hash of the block
-	blockHash, stmtIndex := GetStmtLookupEntry(db, hash)
-	if blockHash != (common.Hash{}) {
-		block := GetBlockByHash(db, blockHash)
-		if block == nil || len(block.statements) <= int(stmtIndex) {
-			log.Error("Transaction referenced missing", "hash", blockHash, "index", stmtIndex)
-			return nil, common.Hash{}, 0
-		}
-		return block.statements[stmtIndex], blockHash, stmtIndex
+// GetStatement retrieves a specific statement from the database by key. It
+// also returns the number of the block and the index of the statement inside
+// of it.
+func GetStatement(db trie.DatabaseReader, key []byte) (*Statement, uint64, uint64) {
+	// Retrieve block number and statement index.
+	blockNumber, stmtIndex, ok := GetStmtLookupEntry(db, key)
+	if !ok {
+		return nil, 0, 0
 	}
-	return nil, common.Hash{}, 0
+	// Retrieve the block and statement.
+	if block := GetBlock(db, blockNumber); block != nil {
+		if stmt := block.StatementByIndex(stmtIndex); stmt != nil {
+			return stmt, blockNumber, stmtIndex
+		}
+	}
+	// Not found.
+	log.Error("Statement referenced missing", "block number", blockNumber, "index", stmtIndex)
+	return nil, 0, 0
 }
 
 // WriteBlock serializes and writes block into the database
@@ -107,8 +98,7 @@ func WriteBlock(db ethdb.Putter, block *Block) error {
 	if err != nil {
 		return err
 	}
-	//key := append(observerPrefix, encodeBlockNumber(block.header.Number)...)
-	if err := db.Put(observerKey(block.header.Number), buf.Bytes()); err != nil {
+	if err := db.Put(mkBlockKey(block.header.Number), buf.Bytes()); err != nil {
 		log.Crit("Failed to store observer block data", "err", err)
 	}
 	return nil
@@ -126,16 +116,16 @@ func WriteLastObserverBlockHash(db ethdb.Putter, hash common.Hash) error {
 // HELPER
 // -----
 
-// observerKey calculates the observer key for a given block number.
-// ex: obs-0, obs-124
-func observerKey(number uint64) []byte {
+// mkBlockKey creates the database key for a given block number.
+// Ex: obs-0, obs-124
+func mkBlockKey(number uint64) []byte {
 	enc := make([]byte, 8)
 	binary.BigEndian.PutUint64(enc, number)
-	return append(observerPrefix, enc...)
+	return append(blockPrefix, enc...)
 }
 
-func encodeBlockNumber(number uint64) []byte {
-	enc := make([]byte, 8)
-	binary.BigEndian.PutUint64(enc, number)
-	return enc
+// mkStmtLookupKey creates the database key for a given statement lookup key.
+// Ex: obssl-foo, obssl-bar
+func mkStmtLookupKey(key []byte) []byte {
+	return append(stmtLookupPrefix, key...)
 }

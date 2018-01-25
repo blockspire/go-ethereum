@@ -17,6 +17,7 @@
 package observer
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"io"
@@ -121,7 +122,7 @@ func (b *Block) CreateSuccessor(stmts []*Statement, privKey *ecdsa.PrivateKey) *
 	sb := &Block{
 		header: &Header{
 			PrevHash:      b.Hash(),
-			Number:        b.Number + 1,
+			Number:        b.header.Number + 1,
 			Time:          uint64(time.Now().Unix()),
 			SignatureType: "ECDSA",
 		},
@@ -203,13 +204,20 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// Statement returns the statement addressed by the passed hash
-// as key.
-func (b *Block) Statement(key common.Hash) *Statement {
+// Statement returns the statement addressed by the passed key.
+func (b *Block) Statement(key []byte) *Statement {
 	for _, statement := range b.statements {
-		if statement.Hash() == key {
+		if bytes.Equal(statement.Key(), key) {
 			return statement
 		}
 	}
 	return nil
+}
+
+// Statement returns the statement addressed by the passed index.
+func (b *Block) StatementByIndex(index uint64) *Statement {
+	if len(b.statements) <= int(index) {
+		return nil
+	}
+	return b.statements[index]
 }
