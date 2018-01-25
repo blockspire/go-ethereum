@@ -116,6 +116,27 @@ func NewBlockWithHeader(header *Header) *Block {
 	return b
 }
 
+// CreateSuccessor creates the block following to this block.
+func (b *Block) CreateSuccessor(stmts []*Statement, privKey *ecdsa.PrivateKey) *Block {
+	sb := &Block{
+		header: &Header{
+			PrevHash:      b.Hash(),
+			Number:        b.Number + 1,
+			Time:          uint64(time.Now().Unix()),
+			SignatureType: "ECDSA",
+		},
+	}
+	if len(stmts) == 0 {
+		sb.header.StmtsRoot = types.EmptyRootHash
+	} else {
+		sb.header.StmtsRoot = types.DeriveSha(Statements(stmts))
+		sb.statements = make(Statements, len(stmts))
+		copy(sb.statements, stmts)
+	}
+	sb.header.sign(privKey)
+	return sb
+}
+
 // Number returns the block number as big.Int.
 func (b *Block) Number() *big.Int {
 	return new(big.Int).SetUint64(b.header.Number)

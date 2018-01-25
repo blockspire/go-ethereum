@@ -36,6 +36,7 @@ type keyValue struct {
 	Value []byte `json:"key" gencodec:"required"`
 
 	// Signature values.
+	// QUESTION: Will it be needed for statements?
 	V *big.Int `json:"v" gencodec:"required"`
 	R *big.Int `json:"r" gencodec:"required"`
 	S *big.Int `json:"s" gencodec:"required"`
@@ -95,13 +96,13 @@ func (st *Statement) DecodeRLP(s *rlp.Stream) error {
 	return err
 }
 
-// Hash hashes the RLP encoding of the statements key.
+// Hash hashes the RLP encoding of the statements key/value.
 // It uniquely identifies it.
 func (st *Statement) Hash() common.Hash {
 	if hash := st.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlpHash(st.kv.Key)
+	h := rlpHash(st.kv)
 	st.hash.Store(h)
 	return h
 }
