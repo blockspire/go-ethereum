@@ -33,11 +33,15 @@ import (
 
 // TestStatement tests creating and accessing statements.
 func TestStatement(t *testing.T) {
-	pl := []byte("foobar")
-	st := observer.NewStatement(pl)
+	k := []byte("foo")
+	v := []byte("bar")
+	st := observer.NewStatement(k, v)
 	// Testing simple access.
-	if tpl := st.Payload(); !bytes.Equal(tpl, pl) {
-		t.Errorf("returned payload %v is not payload %v", tpl, pl)
+	if tk := st.Key(); !bytes.Equal(tk, k) {
+		t.Errorf("returned key %v is not key %v", tk, k)
+	}
+	if tv := st.Value(); !bytes.Equal(tv, v) {
+		t.Errorf("returned value %v is not value %v", tv, v)
 	}
 	// Testing encoding and decoding.
 	var buf bytes.Buffer
@@ -50,8 +54,11 @@ func TestStatement(t *testing.T) {
 	if err != nil {
 		t.Errorf("decoding from RLP returned error: %v", err)
 	}
-	if tpl := tst.Payload(); !bytes.Equal(tpl, pl) {
-		t.Errorf("returned decoded payload %v is not payload %v", tpl, pl)
+	if tk := tst.Key(); !bytes.Equal(tk, k) {
+		t.Errorf("returned key %v is not key %v", tk, k)
+	}
+	if tv := tst.Value(); !bytes.Equal(tv, v) {
+		t.Errorf("returned value %v is not value %v", tv, v)
 	}
 	sthb := st.Hash().Bytes()
 	tsthb := tst.Hash().Bytes()
@@ -94,9 +101,9 @@ func TestStatementsBlock(t *testing.T) {
 		t.Errorf("generation of private key failed")
 	}
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo")),
-		observer.NewStatement([]byte("bar")),
-		observer.NewStatement([]byte("baz")),
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
 	}
 	b := observer.NewBlock(sts, privKey)
 	if b.Number().Uint64() != 0 {

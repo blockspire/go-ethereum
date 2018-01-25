@@ -47,9 +47,9 @@ func TestCanPersistBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo")),
-		observer.NewStatement([]byte("bar")),
-		observer.NewStatement([]byte("baz")),
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
 	}
 
 	privKey, err := crypto.GenerateKey()
@@ -67,9 +67,9 @@ func TestWeCanRetrievePersisedBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 
 	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo")),
-		observer.NewStatement([]byte("bar")),
-		observer.NewStatement([]byte("baz")),
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
 	}
 
 	privKey, err := crypto.GenerateKey()
