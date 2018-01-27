@@ -83,10 +83,12 @@ func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
 	if firstBlock == nil {
 		firstBlock = NewBlock([]*Statement{}, privKey)
 	}
+	if err := WriteBlock(db, firstBlock); err != nil {
+		return nil, err
+	}
 	oc.FirstBlock = firstBlock
 	oc.CurrentBlok = firstBlock
-	if WriteLastObserverBlockHash(db, firstBlock.Hash()) != nil {
-		return nil, nil
-	}
+	WriteLastObserverBlockHash(db, firstBlock.Hash())
+
 	return oc, nil
 }

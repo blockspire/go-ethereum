@@ -38,33 +38,38 @@ func TestNewChainHasFistBlockWithNumberZero(t *testing.T) {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-
 	if c.FirstBlock.Number().Uint64() != 0 {
 		t.Errorf("First block number is not zero")
 	}
+	if c.CurrentBlok.Number().Uint64() != 0 {
+		t.Errorf("Last block number is not zero")
+	}
 }
 
-func TestCanPersistBlock(t *testing.T) {
+func TestWeCanRetrieveFirstBlockFromNewChain(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
-
-	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
-	}
 
 	privKey, err := crypto.GenerateKey()
 	if err != nil {
 		t.Errorf("generation of private key failed")
 	}
 
-	firstBlock := observer.NewBlock(sts, privKey)
-	if err := observer.WriteBlock(testdb, firstBlock); err != nil {
-		t.Errorf("WriteBlock error = %v", err)
+	c, err := observer.NewChain(testdb, privKey)
+	if err != nil {
+		t.Errorf("NewChain() error = %v", err)
+		return
+	}
+
+	fBlock, err := c.Block(0)
+	if err != nil {
+		t.Errorf("Retrieve block error = %v", err)
+	}
+	if fBlock.Number().Uint64() != 0 {
+		t.Errorf("First Block has no zero number")
 	}
 }
 
-func TestWeCanRetrievePersisedBlock(t *testing.T) {
+func TestCanPersistSecondBlock(t *testing.T) {
 	testdb, _ := ethdb.NewMemDatabase()
 
 	privKey, err := crypto.GenerateKey()
@@ -78,9 +83,26 @@ func TestWeCanRetrievePersisedBlock(t *testing.T) {
 		return
 	}
 	t.Log(c)
-	// fBlock, err := c.Block(0)
-	// if err != nil {
-	// 	t.Errorf("Retrieve block error = %v", err)
-	// }
-	// t.Log(fBlock.Number())
+
+	sts := []*observer.Statement{
+		observer.NewStatement([]byte("foo"), []byte("123")),
+		observer.NewStatement([]byte("bar"), []byte("456")),
+		observer.NewStatement([]byte("baz"), []byte("789")),
+	}
+
+	secondBlock := observer.NewBlock(sts, privKey)
+	if err := observer.WriteBlock(testdb, secondBlock); err != nil {
+		t.Errorf("WriteBlock error = %v", err)
+	}
+
+	b2 := c.FirstBlock.CreateSuccessor(sts, privKey)
+	observer.WriteBlock(testdb, b2)
+
+	b2Retrieved, err := c.Block(1)
+	if err != nil {
+		t.Errorf("Retrieve block error = %v", err)
+	}
+	if b2Retrieved.Number().Uint64() != 1 {
+		t.Errorf("Second Block Number is not 1")
+	}
 }
