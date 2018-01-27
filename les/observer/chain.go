@@ -28,12 +28,36 @@ import (
 // ErrNoFirstBlock - ...
 var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 
-// Chain ...
+// -----
+// CHAIN
+// -----
+
+// Chain represents the canonical observer chain given a database with a
+// genesis block.
 type Chain struct {
 	chainDb     ethdb.Database
 	FirstBlock  *Block
 	CurrentBlok *Block
 	PrivateKey  *ecdsa.PrivateKey
+}
+
+// NewChain returns a fully initialised Observer chain
+// using information available in the database
+func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
+	oc := &Chain{
+		PrivateKey: privKey,
+		chainDb:    db,
+	}
+	firstBlock := GetBlock(db, 0)
+	if firstBlock == nil {
+		firstBlock = NewBlock([]*Statement{}, privKey)
+	}
+	oc.FirstBlock = firstBlock
+	oc.CurrentBlok = firstBlock
+	if WriteLastObserverBlockHash(db, firstBlock.Hash()) != nil {
+		return nil, nil
+	}
+	return oc, nil
 }
 
 // Block returns a single block by its
@@ -70,25 +94,4 @@ func (o *Chain) AutoCreateBlocks(period time.Duration) {
 // Close closes the chain
 func (o *Chain) Close() {
 
-}
-
-// NewChain returns a fully initialised Observer chain
-// using information available in the database
-func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
-	oc := &Chain{
-		PrivateKey: privKey,
-		chainDb:    db,
-	}
-	firstBlock := GetBlock(db, 0)
-	if firstBlock == nil {
-		firstBlock = NewBlock([]*Statement{}, privKey)
-	}
-	if err := WriteBlock(db, firstBlock); err != nil {
-		return nil, err
-	}
-	oc.FirstBlock = firstBlock
-	oc.CurrentBlok = firstBlock
-	WriteLastObserverBlockHash(db, firstBlock.Hash())
-
-	return oc, nil
 }
