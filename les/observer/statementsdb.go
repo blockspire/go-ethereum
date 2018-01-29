@@ -17,6 +17,7 @@
 package observer
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,8 +25,15 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// Trie cache generation limit after which to evic trie nodes from memory.
+var MaxTrieCacheGen = uint16(120)
+
 const (
-	// Number of codehash->size associations to keep.
+	// maxPastTries defines the number of past tries to keep. This value is
+	// chosen such that reasonable chain reorg depths will hit an existing trie.
+	maxPastTries = 12
+
+	// codeSizeCacheSize defines the number of codehash->size associations to keep.
 	codeSizeCacheSize = 100000
 )
 
@@ -85,7 +93,7 @@ type TrieDatabase interface {
 	ContractCode(addrHash, codeHash common.Hash) ([]byte, error)
 	ContractCodeSize(addrHash, codeHash common.Hash) (int, error)
 	// CopyTrie returns an independent copy of the given trie.
-	CopyTrie(Trie) Trie
+	CopyTrie(t Trie) Trie
 }
 
 // trieDatabase implements TrieDatabase.
@@ -109,27 +117,87 @@ func NewTrieDatabase(db Database) TrieDatabase {
 
 // OpenTrie implements TrieDatabase.
 func (tdb *trieDatabase) OpenTrie(root common.Hash) (Trie, error) {
-	return nil, nil
+	tdb.mu.Lock()
+	defer tdb.mu.Unlock()
+	for i := len(tdb.pastTries) - 1; i >= 0; i-- {
+		if tdb.pastTries[i].Hash() == root {
+			return cachedTrie{tdb.pastTries[i].Copy(), tdb}, nil
+		}
+	}
+	tr, err := trie.NewSecure(root, tdb.db, MaxTrieCacheGen)
+	if err != nil {
+		return nil, err
+	}
+	return cachedTrie{tr, tdb}, nil
 }
 
 // OpenStorageTrie implements TrieDatabase.
 func (tdb *trieDatabase) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	return nil, nil
+	return trie.NewSecure(root, tdb.db, 0)
 }
 
 // ContractCode implements TrieDatabase.
 func (tdb *trieDatabase) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
-	return nil, nil
+	code, err := tdb.db.Get(codeHash[:])
+	if err == nil {
+		tdb.codeSizeCache.Add(codeHash, len(code))
+	}
+	return code, err
 }
 
 // ContractCodeSize implements TrieDatabase.
 func (tdb *trieDatabase) ContractCodeSize(addrHash, codeHash common.Hash) (int, error) {
-	return 0, nil
+	if cached, ok := tdb.codeSizeCache.Get(codeHash); ok {
+		return cached.(int), nil
+	}
+	code, err := tdb.ContractCode(addrHash, codeHash)
+	if err == nil {
+		tdb.codeSizeCache.Add(codeHash, len(code))
+	}
+	return len(code), err
 }
 
 // CopyTrie implements TrieDatabase.
-func (tdb *trieDatabase) CopyTrie(Trie) Trie {
-	return nil
+func (tdb *trieDatabase) CopyTrie(t Trie) Trie {
+	switch t := t.(type) {
+	case cachedTrie:
+		return cachedTrie{t.SecureTrie.Copy(), tdb}
+	case *trie.SecureTrie:
+		return t.Copy()
+	default:
+		panic(fmt.Errorf("unknown trie type %T", t))
+	}
+}
+
+// pushTries add the passed tries to it's list of past tries.
+func (tdb *trieDatabase) pushTrie(t *trie.SecureTrie) {
+	tdb.mu.Lock()
+	defer tdb.mu.Unlock()
+	if len(tdb.pastTries) >= maxPastTries {
+		copy(tdb.pastTries, tdb.pastTries[1:])
+		tdb.pastTries[len(tdb.pastTries)-1] = t
+	} else {
+		tdb.pastTries = append(tdb.pastTries, t)
+	}
+}
+
+// -----
+// CACHED TRIE
+// -----
+
+// cachedTrie inserts its trie into a cachingDB on commit.
+type cachedTrie struct {
+	*trie.SecureTrie
+	db *trieDatabase
+}
+
+// CommitTo writes the cached trie into the passed trie writer.
+func (ct cachedTrie) CommitTo(dbw trie.DatabaseWriter) (common.Hash, error) {
+	root, err := ct.SecureTrie.CommitTo(dbw)
+	if err == nil {
+		ct.db.pushTrie(ct.SecureTrie)
+	}
+	return root, err
 }
 
 // -----
