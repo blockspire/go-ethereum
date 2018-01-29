@@ -44,21 +44,21 @@ type DatabaseGetter interface {
 	Has(key []byte) (bool, error)
 }
 
-// Database wraps all database operations.
-type Database interface {
-	DatabasePutter
-	DatabaseGetter
-	Delete(key []byte) error
-	NewBatch() Batch
-	Close()
-}
-
 // DatabaseBatch is a write-only database that commits changes to its host database
 // when Write is called.
 type DatabaseBatch interface {
 	DatabasePutter
 	ValueSize() int
 	Write() error
+}
+
+// Database wraps all database operations.
+type Database interface {
+	DatabasePutter
+	DatabaseGetter
+	Delete(key []byte) error
+	NewBatch() DatabaseBatch
+	Close()
 }
 
 // Trie is a Ethereum Merkle Trie.
@@ -142,13 +142,13 @@ type StatementsDB struct {
 	trie Trie
 }
 
-// Create a new state from a given trie
-func New(root common.Hash, db Database) (*StateDB, error) {
+// Create a new Statements database from a given trie.
+func New(root common.Hash, db TrieDatabase) (*StatementsDB, error) {
 	tr, err := db.OpenTrie(root)
 	if err != nil {
 		return nil, err
 	}
-	return &StateDB{
+	return &StatementsDB{
 		db:   db,
 		trie: tr,
 	}, nil
