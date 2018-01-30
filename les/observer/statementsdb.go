@@ -21,6 +21,8 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -201,6 +203,22 @@ func (ct cachedTrie) CommitTo(dbw trie.DatabaseWriter) (common.Hash, error) {
 }
 
 // -----
+// MODIFIED STATEMENT
+// -----
+
+// change represents the change to a statement.
+type change struct {
+	stmt    *Statement
+	db      *StatementsDB
+	deleted bool
+}
+
+// keyHash return the RLP hash of the statement key.
+func (c *change) keyHash() common.Hash {
+	return rlpHash(c.stmt.Key())
+}
+
+// -----
 // STATEMENTS DATABASE
 // -----
 
@@ -208,16 +226,66 @@ func (ct cachedTrie) CommitTo(dbw trie.DatabaseWriter) (common.Hash, error) {
 type StatementsDB struct {
 	db   TrieDatabase
 	trie Trie
+
+	dbErr   error
+	changes map[common.Hash]*change
 }
 
-// Create a new Statements database from a given trie.
-func New(root common.Hash, db TrieDatabase) (*StatementsDB, error) {
+// NewStatementsDB Create a new statements database from a given trie.
+func NewStatementsDB(root common.Hash, db TrieDatabase) (*StatementsDB, error) {
 	tr, err := db.OpenTrie(root)
 	if err != nil {
 		return nil, err
 	}
 	return &StatementsDB{
-		db:   db,
-		trie: tr,
+		db:      db,
+		trie:    tr,
+		changes: make(map[common.Hash]*change),
 	}, nil
+}
+
+// setError remembers the first non-nil error it is called with.
+func (sdb *StatementsDB) setError(err error) {
+	if sdb.dbErr == nil {
+		sdb.dbErr = err
+	}
+}
+
+// Error return a potentially happened database error.
+func (sdb *StatementsDB) Error() error {
+	return sdb.dbErr
+}
+
+// getChange retrieves a change given by the key. Returns nil if not found.
+func (sdb *StatementsDB) getChange(key []byte) *change {
+	// Prefer 'live' statements.
+	if chg := sdb.changes[rlpHash(key)]; chg != nil {
+		if chg.deleted {
+			return nil
+		}
+		return chg
+	}
+	// Load the statement from the database.
+	enc, err := sdb.trie.TryGet(key)
+	if len(enc) == 0 {
+		sdb.setError(err)
+		return nil
+	}
+	var stmt Statement
+	if err := rlp.DecodeBytes(enc, &stmt); err != nil {
+		log.Error("Failed to decode statement", "key", key, "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	chg := &change{
+		stmt: &stmt,
+		db:   sdb,
+	}
+	sdb.setChange(chg)
+	return chg
+}
+
+// setChange adds a change to the internal memory.
+func (sdb *StatementsDB) setChange(chg *change) {
+	sdb.changes[chg.keyHash()] = chg
 }
