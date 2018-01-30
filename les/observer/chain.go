@@ -28,6 +28,9 @@ import (
 // ErrNoFirstBlock - ...
 var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 
+// ErrNoBlock if we can not retrieve requested block
+var ErrNoBlock = errors.New("Block not found in observer chain")
+
 // -----
 // CHAIN
 // -----
@@ -35,25 +38,28 @@ var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 // Chain represents the canonical observer chain given a database with a
 // genesis block.
 type Chain struct {
-	chainDb     ethdb.Database
-	FirstBlock  *Block
-	CurrentBlok *Block
-	PrivateKey  *ecdsa.PrivateKey
+	chainDb      ethdb.Database
+	firstBlock   *Block
+	currentBlock *Block
+	privateKey   *ecdsa.PrivateKey
 }
 
 // NewChain returns a fully initialised Observer chain
 // using information available in the database
 func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
 	oc := &Chain{
-		PrivateKey: privKey,
+		privateKey: privKey,
 		chainDb:    db,
 	}
 	firstBlock := GetBlock(db, 0)
 	if firstBlock == nil {
 		firstBlock = NewBlock([]*Statement{}, privKey)
 	}
-	oc.FirstBlock = firstBlock
-	oc.CurrentBlok = firstBlock
+	oc.firstBlock = firstBlock
+	oc.currentBlock = firstBlock
+	if err := WriteBlock(db, firstBlock); err != nil {
+		return nil, err
+	}
 	if WriteLastObserverBlockHash(db, firstBlock.Hash()) != nil {
 		return nil, nil
 	}
@@ -64,9 +70,19 @@ func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
 func (o *Chain) Block(number uint64) (*Block, error) {
 	b := GetBlock(o.chainDb, number)
 	if b == nil {
-		return nil, nil
+		return nil, ErrNoBlock
 	}
 	return b, nil
+}
+
+// FirstBlock ...
+func (o *Chain) FirstBlock() *Block {
+	return o.firstBlock
+}
+
+// CurrentBlock ...
+func (o *Chain) CurrentBlock() *Block {
+	return o.currentBlock
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
