@@ -38,10 +38,10 @@ func TestNewChainHasFistBlockWithNumberZero(t *testing.T) {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-	if c.FirstBlock.Number().Uint64() != 0 {
+	if c.FirstBlock().Number().Uint64() != 0 {
 		t.Errorf("First block number is not zero")
 	}
-	if c.CurrentBlok.Number().Uint64() != 0 {
+	if c.CurrentBlock().Number().Uint64() != 0 {
 		t.Errorf("Last block number is not zero")
 	}
 }
@@ -95,7 +95,7 @@ func TestCanPersistSecondBlock(t *testing.T) {
 		t.Errorf("WriteBlock error = %v", err)
 	}
 
-	b2 := c.FirstBlock.CreateSuccessor(sts, privKey)
+	b2 := c.FirstBlock().CreateSuccessor(sts, privKey)
 	observer.WriteBlock(testdb, b2)
 
 	b2Retrieved, err := c.Block(1)
