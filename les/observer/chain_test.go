@@ -19,6 +19,7 @@ package observer_test
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/les/observer"
@@ -84,18 +85,18 @@ func TestCanPersistSecondBlock(t *testing.T) {
 	}
 	t.Log(c)
 
-	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
-	}
+	//	sts := []*observer.Statement{
+	//		observer.NewStatement([]byte("foo"), []byte("123")),
+	//		observer.NewStatement([]byte("bar"), []byte("456")),
+	//		observer.NewStatement([]byte("baz"), []byte("789")),
+	//	}
 
-	secondBlock := observer.NewBlock(sts, privKey)
+	secondBlock := observer.NewBlock(privKey)
 	if err := observer.WriteBlock(testdb, secondBlock); err != nil {
 		t.Errorf("WriteBlock error = %v", err)
 	}
 
-	b2 := c.FirstBlock().CreateSuccessor(sts, privKey)
+	b2 := c.FirstBlock().CreateSuccessor(common.Hash{}, privKey)
 	observer.WriteBlock(testdb, b2)
 
 	b2Retrieved, err := c.Block(1)

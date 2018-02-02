@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -39,7 +40,7 @@ type StmtLookupEntry struct {
 }
 
 // GetBlock retrieves an entire block corresponding to the number.
-func GetBlock(db DatabaseGetter, number uint64) *Block {
+func GetBlock(db trie.Database, number uint64) *Block {
 	data, _ := db.Get(mkBlockKey(number))
 	if len(data) == 0 {
 		return nil
@@ -53,7 +54,7 @@ func GetBlock(db DatabaseGetter, number uint64) *Block {
 }
 
 // GetStmtLookupEntry retrieves block number and index of a statement.
-func GetStmtLookupEntry(db DatabaseGetter, key []byte) (uint64, uint64, bool) {
+func GetStmtLookupEntry(db trie.Database, key []byte) (uint64, uint64, bool) {
 	// Retrieve lookup entry.
 	data, _ := db.Get(mkStmtLookupKey(key))
 	if len(data) == 0 {
@@ -72,7 +73,7 @@ func GetStmtLookupEntry(db DatabaseGetter, key []byte) (uint64, uint64, bool) {
 // GetStatement retrieves a specific statement from the database by key. It
 // also returns the number of the block and the index of the statement inside
 // of it.
-func GetStatement(db DatabaseGetter, key []byte) (*Statement, uint64, uint64) {
+func GetStatement(db trie.Database, key []byte) (*Statement, uint64, uint64) {
 	// Retrieve block number and statement index.
 	blockNumber, stmtIndex, ok := GetStmtLookupEntry(db, key)
 	if !ok {
@@ -90,7 +91,7 @@ func GetStatement(db DatabaseGetter, key []byte) (*Statement, uint64, uint64) {
 }
 
 // WriteBlock serializes and writes block into the database
-func WriteBlock(db DatabasePutter, block *Block) error {
+func WriteBlock(db trie.Database, block *Block) error {
 	var buf bytes.Buffer
 	err := block.EncodeRLP(&buf)
 	if err != nil {
@@ -103,7 +104,7 @@ func WriteBlock(db DatabasePutter, block *Block) error {
 }
 
 // WriteLastObserverBlockHash writes last block hash to DB under key headBlockKey
-func WriteLastObserverBlockHash(db DatabasePutter, hash common.Hash) error {
+func WriteLastObserverBlockHash(db trie.Database, hash common.Hash) error {
 	if err := db.Put(lastBlockKey, hash.Bytes()); err != nil {
 		log.Crit("Failed to store last observer block's hash", "err", err)
 	}

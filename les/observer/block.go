@@ -42,7 +42,7 @@ type Header struct {
 	PrevHash      common.Hash `json:"prevHash"       gencodec:"required"`
 	Number        uint64      `json:"number"         gencodec:"required"`
 	Time          uint64      `json:"time"           gencodec:"required"`
-	StmtsRoot     common.Hash `json:"stmtsRoot"      gencodec:"required"`
+	TrieRoot      common.Hash `json:"trieRoot"      gencodec:"required"`
 	SignatureType string      `json:"signatureType"  gencodec:"required"`
 	Signature     []byte      `json:"signature"      gencodec:"required"`
 }
@@ -59,7 +59,7 @@ func (h *Header) sign(privKey *ecdsa.PrivateKey) {
 		PrevHash:      h.PrevHash,
 		Number:        h.Number,
 		Time:          h.Time,
-		StmtsRoot:     h.StmtsRoot,
+		TrieRoot:      h.TrieRoot,
 		SignatureType: h.SignatureType,
 	}
 	rlp, _ := rlp.EncodeToBytes(unsignedData)
@@ -86,56 +86,40 @@ type encBlock struct {
 	Statements []*Statement
 }
 
-// NewBlock creates a new block.
-// TODO: More details about arguments.
-func NewBlock(stmts []*Statement, privKey *ecdsa.PrivateKey) *Block {
+// NewBlock creates a new first block.
+func NewBlock(privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		header: &Header{
 			PrevHash:      common.Hash{},
 			Number:        0,
 			Time:          uint64(time.Now().Unix()),
+			TrieRoot:      types.EmptyRootHash,
 			SignatureType: "ECDSA",
 		},
-	}
-	if len(stmts) == 0 {
-		b.header.StmtsRoot = types.EmptyRootHash
-	} else {
-		b.header.StmtsRoot = types.DeriveSha(Statements(stmts))
-		b.statements = make(Statements, len(stmts))
-		copy(b.statements, stmts)
 	}
 	b.header.sign(privKey)
 	return b
 }
 
-// NewBlockWithHeader creates a new block based on the passed header.
-// TODO: Header copy needed?
-func NewBlockWithHeader(header *Header) *Block {
-	b := &Block{
-		header: header,
-	}
-	return b
-}
-
-// CreateSuccessor creates the block following to this block.
-func (b *Block) CreateSuccessor(stmts []*Statement, privKey *ecdsa.PrivateKey) *Block {
+// CreateSuccessor creates the block following to this block. The
+// new trie root is set and the block will be signed.
+func (b *Block) CreateSuccessor(trieRoot common.Hash, privKey *ecdsa.PrivateKey) *Block {
 	sb := &Block{
 		header: &Header{
 			PrevHash:      b.Hash(),
 			Number:        b.header.Number + 1,
 			Time:          uint64(time.Now().Unix()),
+			TrieRoot:      trieRoot,
 			SignatureType: "ECDSA",
 		},
 	}
-	if len(stmts) == 0 {
-		sb.header.StmtsRoot = types.EmptyRootHash
-	} else {
-		sb.header.StmtsRoot = types.DeriveSha(Statements(stmts))
-		sb.statements = make(Statements, len(stmts))
-		copy(sb.statements, stmts)
-	}
 	sb.header.sign(privKey)
 	return sb
+}
+
+// TrieRoot returns the trie root of the block.
+func (b *Block) TrieRoot() common.Hash {
+	return b.header.TrieRoot
 }
 
 // Number returns the block number as big.Int.
@@ -156,9 +140,11 @@ func (b *Block) Time() *big.Int {
 	return new(big.Int).SetUint64(b.header.Time)
 }
 
-// StmtsRoot returns the root hash of the block statements.
-func (b *Block) StmtsRoot() common.Hash {
-	return b.header.StmtsRoot
+// Signature returns the signature of the block.
+func (b *Block) Signature() []byte {
+	sig := make([]byte, len(b.header.Signature))
+	copy(sig, b.header.Signature)
+	return sig
 }
 
 // Hash returns the keccak256 hash of the block's header.
@@ -170,6 +156,11 @@ func (b *Block) Hash() common.Hash {
 	v := b.header.hash()
 	b.hash.Store(v)
 	return v
+}
+
+// PrevHash returns the hash of the previous block.
+func (b *Block) PrevHash() common.Hash {
+	return b.header.PrevHash
 }
 
 // Size returns the storage size of the block.

@@ -23,8 +23,10 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/les/observer"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // -----
@@ -69,11 +71,13 @@ func TestStatement(t *testing.T) {
 
 // TestEmptyBlock tests creating and accessing empty blocks.
 func TestEmptyBlock(t *testing.T) {
+	// Infrastructure.
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Errorf("generation of private key failed")
 	}
-	b := observer.NewBlock(nil, privKey)
+	// Initial block.
+	b := observer.NewBlock(privKey)
 	if b.Number().Uint64() != 0 {
 		t.Errorf("number of new block is not 0")
 	}
@@ -93,34 +97,82 @@ func TestEmptyBlock(t *testing.T) {
 	}
 }
 
-// TestStatementsBlock tests creating and accessing blocks
-// containing statements
-func TestStatementsBlock(t *testing.T) {
+// TestBlockTrieRoot tests the initial TrieRoot and how it changes if
+// some values are set in Trie. Also after setting the new TrieRoot
+// (hash of the Trie) the signature of the successor block has to
+// differ.
+func TestBlockTrieRoot(t *testing.T) {
+	// Helper.
+	update := func(tr *trie.Trie, key, value string) {
+		err := tr.TryUpdate([]byte(key), []byte(value))
+		if err != nil {
+			t.Errorf("updating trie failed")
+		}
+	}
+	assert := func(tr *trie.Trie, key, value string) {
+		v, err := tr.TryGet([]byte(key))
+		if err != nil {
+			t.Errorf("getting from trie failed")
+		}
+		if string(v) != value {
+			t.Errorf("retrieved value from trie is wrong")
+		}
+	}
+	// Infrastructure.
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Errorf("generation of private key failed")
 	}
-	sts := []*observer.Statement{
-		observer.NewStatement([]byte("foo"), []byte("123")),
-		observer.NewStatement([]byte("bar"), []byte("456")),
-		observer.NewStatement([]byte("baz"), []byte("789")),
-	}
-	b := observer.NewBlock(sts, privKey)
-	if b.Number().Uint64() != 0 {
-		t.Errorf("number of new block is not 0")
-	}
-	// Testing encoding and decoding.
-	var buf bytes.Buffer
-	err = b.EncodeRLP(&buf)
+	db, err := ethdb.NewMemDatabase()
 	if err != nil {
-		t.Errorf("encoding to RLP returned error: %v", err)
+		t.Errorf("creation of memory database failed")
 	}
-	var tb observer.Block
-	err = tb.DecodeRLP(rlp.NewStream(&buf, 0))
+	// Genesis block.
+	genesis := observer.NewBlock(privKey)
+	if genesis.Number().Uint64() != 0 {
+		t.Errorf("number of genesis block is not 0")
+	}
+	// Now get trie and modify it to generate a successor block.
+	tr, err := trie.New(genesis.TrieRoot(), db)
 	if err != nil {
-		t.Errorf("decoding from RLP returned error: %v", err)
+		t.Errorf("instantiating the trie failed")
 	}
-	if tb.Number().Uint64() != 0 {
-		t.Errorf("number of encoded/decoded block is not 0")
+	update(tr, "foo", "123")
+	update(tr, "bar", "456")
+	update(tr, "baz", "789")
+	trieRoot, err := tr.Commit()
+	if err != nil {
+		t.Errorf("committing the trie updates failed")
+	}
+	successor := genesis.CreateSuccessor(trieRoot, privKey)
+	if successor.Number().Uint64() != 1 {
+		t.Errorf("number of successor block is not 1")
+	}
+	if bytes.Equal(genesis.Signature(), successor.Signature()) {
+		t.Errorf("signature of successor has to be different")
+	}
+	if !bytes.Equal(genesis.Hash().Bytes(), successor.PrevHash().Bytes()) {
+		t.Errorf("successor previous hash has to be genesis hash")
+	}
+	// Last but not least a final block.
+	tr, _ = trie.New(successor.TrieRoot(), db)
+	assert(tr, "foo", "123")
+	assert(tr, "bar", "456")
+	assert(tr, "baz", "789")
+	update(tr, "foo", "000")
+	update(tr, "yadda", "999")
+	trieRoot, err = tr.Commit()
+	if err != nil {
+		t.Errorf("committing the trie updates failed")
+	}
+	last := successor.CreateSuccessor(trieRoot, privKey)
+	if last.Number().Uint64() != 2 {
+		t.Errorf("number of last block is not 2")
+	}
+	if bytes.Equal(successor.Signature(), last.Signature()) {
+		t.Errorf("signature of last has to be different")
+	}
+	if !bytes.Equal(successor.Hash().Bytes(), last.PrevHash().Bytes()) {
+		t.Errorf("lasts previous hash has to be successor hash")
 	}
 }
