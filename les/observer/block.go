@@ -17,7 +17,6 @@
 package observer
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"io"
@@ -72,21 +71,14 @@ func (h *Header) sign(privKey *ecdsa.PrivateKey) {
 
 // Block represents one block on the observer chain.
 type Block struct {
-	header     *Header
-	statements Statements
+	header *Header
 
 	// Caches.
 	hash atomic.Value
 	size atomic.Value
 }
 
-// encBlock for encoding of block.
-type encBlock struct {
-	Header     *Header
-	Statements []*Statement
-}
-
-// NewBlock creates a new first block.
+// NewBlock creates a new first block (genesis block).
 func NewBlock(privKey *ecdsa.PrivateKey) *Block {
 	b := &Block{
 		header: &Header{
@@ -176,39 +168,17 @@ func (b *Block) Size() common.StorageSize {
 
 // EncodeRLP implements rlp.Encoder.
 func (b *Block) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, encBlock{
-		Header:     b.header,
-		Statements: b.statements,
-	})
+	return rlp.Encode(w, b.header)
 }
 
 // DecodeRLP implements rlp.Decoder.
 func (b *Block) DecodeRLP(s *rlp.Stream) error {
-	var enc encBlock
+	var h Header
 	_, size, _ := s.Kind()
-	if err := s.Decode(&enc); err != nil {
+	if err := s.Decode(&h); err != nil {
 		return err
 	}
-	b.header = enc.Header
-	b.statements = enc.Statements
+	b.header = &h
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
-}
-
-// Statement returns the statement addressed by the passed key.
-func (b *Block) Statement(key []byte) *Statement {
-	for _, statement := range b.statements {
-		if bytes.Equal(statement.Key(), key) {
-			return statement
-		}
-	}
-	return nil
-}
-
-// Statement returns the statement addressed by the passed index.
-func (b *Block) StatementByIndex(index uint64) *Statement {
-	if len(b.statements) <= int(index) {
-		return nil
-	}
-	return b.statements[index]
 }

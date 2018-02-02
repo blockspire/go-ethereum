@@ -53,43 +53,6 @@ func GetBlock(db trie.Database, number uint64) *Block {
 	return b
 }
 
-// GetStmtLookupEntry retrieves block number and index of a statement.
-func GetStmtLookupEntry(db trie.Database, key []byte) (uint64, uint64, bool) {
-	// Retrieve lookup entry.
-	data, _ := db.Get(mkStmtLookupKey(key))
-	if len(data) == 0 {
-		log.Error("Cannot find statement lookup", "key", key)
-		return 0, 0, false
-	}
-	// Decode it.
-	var entry StmtLookupEntry
-	if err := rlp.DecodeBytes(data, &entry); err != nil {
-		log.Error("Invalid lookup entry RLP", "key", key, "err", err)
-		return 0, 0, false
-	}
-	return entry.BlockNumber, entry.Index, true
-}
-
-// GetStatement retrieves a specific statement from the database by key. It
-// also returns the number of the block and the index of the statement inside
-// of it.
-func GetStatement(db trie.Database, key []byte) (*Statement, uint64, uint64) {
-	// Retrieve block number and statement index.
-	blockNumber, stmtIndex, ok := GetStmtLookupEntry(db, key)
-	if !ok {
-		return nil, 0, 0
-	}
-	// Retrieve the block and statement.
-	if block := GetBlock(db, blockNumber); block != nil {
-		if stmt := block.StatementByIndex(stmtIndex); stmt != nil {
-			return stmt, blockNumber, stmtIndex
-		}
-	}
-	// Not found.
-	log.Error("Statement referenced missing", "block number", blockNumber, "index", stmtIndex)
-	return nil, 0, 0
-}
-
 // WriteBlock serializes and writes block into the database
 func WriteBlock(db trie.Database, block *Block) error {
 	var buf bytes.Buffer
