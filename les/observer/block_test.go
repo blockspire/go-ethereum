@@ -132,15 +132,16 @@ func TestBlockTrieRoot(t *testing.T) {
 	if genesis.Number().Uint64() != 0 {
 		t.Errorf("number of genesis block is not 0")
 	}
+	trieDB := trie.NewDatabase(db)
 	// Now get trie and modify it to generate a successor block.
-	tr, err := trie.New(genesis.TrieRoot(), db)
+	tr, err := trie.New(genesis.TrieRoot(), trieDB)
 	if err != nil {
 		t.Errorf("instantiating the trie failed")
 	}
 	update(tr, "foo", "123")
 	update(tr, "bar", "456")
 	update(tr, "baz", "789")
-	trieRoot, err := tr.Commit()
+	trieRoot, err := tr.Commit(nil)
 	if err != nil {
 		t.Errorf("committing the trie updates failed")
 	}
@@ -155,13 +156,13 @@ func TestBlockTrieRoot(t *testing.T) {
 		t.Errorf("successor previous hash has to be genesis hash")
 	}
 	// Last but not least a final block.
-	tr, _ = trie.New(successor.TrieRoot(), db)
+	tr, _ = trie.New(successor.TrieRoot(), trieDB)
 	assert(tr, "foo", "123")
 	assert(tr, "bar", "456")
 	assert(tr, "baz", "789")
 	update(tr, "foo", "000")
 	update(tr, "yadda", "999")
-	trieRoot, err = tr.Commit()
+	trieRoot, err = tr.Commit(nil)
 	if err != nil {
 		t.Errorf("committing the trie updates failed")
 	}
