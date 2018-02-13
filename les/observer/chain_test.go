@@ -83,7 +83,7 @@ func TestCanPersistSecondBlock(t *testing.T) {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-	t.Log(c)
+	//t.Log(c)
 
 	//	sts := []*observer.Statement{
 	//		observer.NewStatement([]byte("foo"), []byte("123")),

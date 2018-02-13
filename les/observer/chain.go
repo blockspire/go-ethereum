@@ -75,7 +75,8 @@ func (o *Chain) Block(number uint64) (*Block, error) {
 	return b, nil
 }
 
-// FirstBlock ...
+// FirstBlock returns Observer Chain's first block, aka. Genesis block.
+// We are not calling it genesis block because will be different from node to node.
 func (o *Chain) FirstBlock() *Block {
 	return o.firstBlock
 }
@@ -87,7 +88,7 @@ func (o *Chain) CurrentBlock() *Block {
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
 func (o *Chain) LockAndGetTrie() *trie.Trie {
-	t, err := trie.New(o.currentBlock.Hash(), trie.NewDatabase(o.db))
+	t, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +103,9 @@ func (o *Chain) UnlockTrie() {
 // CreateBlock commits current trie and seals a new block; continues using the same trie
 // values are persistent, we will care about garbage collection later
 func (o *Chain) CreateBlock() *Block {
-	return &Block{}
+	t := o.LockAndGetTrie()
+	t.Commit(nil)
+	return o.CurrentBlock().CreateSuccessor(o.CurrentBlock().TrieRoot(), o.privateKey)
 }
 
 // AutoCreateBlocks ...
