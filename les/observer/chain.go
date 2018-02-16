@@ -32,6 +32,9 @@ var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 // ErrNoBlock if we can not retrieve requested block
 var ErrNoBlock = errors.New("Block not found in observer chain")
 
+// ErrTrieIsAlreadyLocked if trie is locked already
+var ErrTrieIsAlreadyLocked = errors.New("Can not unlock, Observer trie is already locked, sorry")
+
 const ( // statuses for statement trie
 	locked = iota
 	unlocked
@@ -96,15 +99,15 @@ func (o *Chain) CurrentBlock() *Block {
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
-func (o *Chain) LockAndGetTrie() *trie.Trie {
+func (o *Chain) LockAndGetTrie() (*trie.Trie, error) {
 	if sts := o.trieStatus.Load(); sts == nil || sts == unlocked {
 		o.trieStatus.Store(locked)
 		tr, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
 		if err == nil {
-			return tr
+			return tr, nil
 		}
 	}
-	return nil
+	return nil, ErrTrieIsAlreadyLocked
 }
 
 // UnlockTrie unlock trie mutex
@@ -120,8 +123,11 @@ func (o *Chain) UnlockTrie() {
 // CreateBlock commits current trie and seals a new block; continues using the same trie
 // values are persistent, we will care about garbage collection later
 func (o *Chain) CreateBlock() *Block {
-	t := o.LockAndGetTrie()
-	t.Commit(nil)
+	t, err := o.LockAndGetTrie()
+	if err == nil {
+		t.Commit(nil)
+		return o.CurrentBlock().CreateSuccessor(o.CurrentBlock().TrieRoot(), o.privateKey)
+	}
 	return o.CurrentBlock().CreateSuccessor(o.CurrentBlock().TrieRoot(), o.privateKey)
 }
 

@@ -116,9 +116,9 @@ func TestWeCanLockAndGetTrieOnNewChain(t *testing.T) {
 	}
 
 	// Locking and getting the statement trie
-	observerTrie := c.LockAndGetTrie()
-	if observerTrie == nil {
-		t.Error("New chain has no trie root")
+	observerTrie, err := c.LockAndGetTrie()
+	if err != nil {
+		t.Error("Can not unlock trie on new chain")
 	}
 
 	err = observerTrie.TryUpdate([]byte("SomeKey"), []byte("SomeValue"))
@@ -142,13 +142,22 @@ func TestWeCanLockAndGetTrieOnce(t *testing.T) {
 	}
 
 	// Locking and getting the statement trie
-	observerTrie := c.LockAndGetTrie()
-	if observerTrie == nil {
+	observerTrie, err := c.LockAndGetTrie()
+	if err != nil {
 		t.Error("New chain has no trie root")
 	}
+	if observerTrie.Root() == nil {
+		t.Error("Non nil trie has no Root()")
+	}
 
-	observerTrie2 := c.LockAndGetTrie()
-	if observerTrie2 != nil {
+	observerTrie2, err := c.LockAndGetTrie()
+	if err == nil {
 		t.Error("Locked trie happened to be locked twice :(")
+	}
+	if err != observer.ErrTrieIsAlreadyLocked {
+		t.Error("Error type is not what expected")
+	}
+	if observerTrie2 != nil {
+		t.Error("Observer trie should be nil")
 	}
 }
