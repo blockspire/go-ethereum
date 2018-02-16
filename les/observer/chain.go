@@ -19,6 +19,7 @@ package observer
 import (
 	"crypto/ecdsa"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -31,6 +32,12 @@ var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 // ErrNoBlock if we can not retrieve requested block
 var ErrNoBlock = errors.New("Block not found in observer chain")
 
+const ( // statuses for statement trie
+	locked = iota
+	unlocked
+	unlocking
+)
+
 // -----
 // CHAIN
 // -----
@@ -42,6 +49,7 @@ type Chain struct {
 	firstBlock   *Block
 	currentBlock *Block
 	privateKey   *ecdsa.PrivateKey
+	trieStatus   atomic.Value // Stores the statement trie locked status ( locked/unlocked/unlocking )
 }
 
 // NewChain returns a fully initialised Observer chain
@@ -51,6 +59,7 @@ func NewChain(db ethdb.Database, privKey *ecdsa.PrivateKey) (*Chain, error) {
 		db:         db,
 		privateKey: privKey,
 	}
+	oc.trieStatus.Store(unlocked)
 	firstBlock := GetBlock(db, 0)
 	if firstBlock == nil {
 		firstBlock = NewBlock(privKey)
@@ -81,22 +90,30 @@ func (o *Chain) FirstBlock() *Block {
 	return o.firstBlock
 }
 
-// CurrentBlock ...
+// CurrentBlock returns the current last block on the chain
 func (o *Chain) CurrentBlock() *Block {
 	return o.currentBlock
 }
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
 func (o *Chain) LockAndGetTrie() *trie.Trie {
-	t, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
-	if err != nil {
-		panic(err)
+	if sts := o.trieStatus.Load(); sts == nil || sts == unlocked {
+		o.trieStatus.Store(locked)
+		tr, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
+		if err == nil {
+			return tr
+		}
 	}
-	return t
+	return nil
 }
 
 // UnlockTrie unlock trie mutex
 func (o *Chain) UnlockTrie() {
+	// check if trie is locked
+	// if locked, commit trie, save block, then unlock trie
+	if sts := o.trieStatus.Load(); sts == locked {
+
+	}
 
 }
 

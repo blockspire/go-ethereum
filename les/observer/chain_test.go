@@ -83,13 +83,6 @@ func TestCanPersistSecondBlock(t *testing.T) {
 		t.Errorf("NewChain() error = %v", err)
 		return
 	}
-	//t.Log(c)
-
-	//	sts := []*observer.Statement{
-	//		observer.NewStatement([]byte("foo"), []byte("123")),
-	//		observer.NewStatement([]byte("bar"), []byte("456")),
-	//		observer.NewStatement([]byte("baz"), []byte("789")),
-	//	}
 
 	secondBlock := observer.NewBlock(privKey)
 	if err := observer.WriteBlock(testdb, secondBlock); err != nil {
@@ -105,5 +98,57 @@ func TestCanPersistSecondBlock(t *testing.T) {
 	}
 	if b2Retrieved.Number().Uint64() != 1 {
 		t.Errorf("Second Block Number is not 1")
+	}
+}
+
+func TestWeCanLockAndGetTrieOnNewChain(t *testing.T) {
+	testdb, _ := ethdb.NewMemDatabase()
+
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	c, err := observer.NewChain(testdb, privKey)
+	if err != nil {
+		t.Errorf("NewChain() error = %v", err)
+		return
+	}
+
+	// Locking and getting the statement trie
+	observerTrie := c.LockAndGetTrie()
+	if observerTrie == nil {
+		t.Error("New chain has no trie root")
+	}
+
+	err = observerTrie.TryUpdate([]byte("SomeKey"), []byte("SomeValue"))
+	if err != nil {
+		t.Errorf("updating trie failed")
+	}
+}
+
+func TestWeCanLockAndGetTrieOnce(t *testing.T) {
+	testdb, _ := ethdb.NewMemDatabase()
+
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	c, err := observer.NewChain(testdb, privKey)
+	if err != nil {
+		t.Errorf("NewChain() error = %v", err)
+		return
+	}
+
+	// Locking and getting the statement trie
+	observerTrie := c.LockAndGetTrie()
+	if observerTrie == nil {
+		t.Error("New chain has no trie root")
+	}
+
+	observerTrie2 := c.LockAndGetTrie()
+	if observerTrie2 != nil {
+		t.Error("Locked trie happened to be locked twice :(")
 	}
 }
