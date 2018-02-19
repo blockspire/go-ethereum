@@ -154,10 +154,37 @@ func TestWeCanLockAndGetTrieOnce(t *testing.T) {
 	if err == nil {
 		t.Error("Locked trie happened to be locked twice :(")
 	}
-	if err != observer.ErrTrieIsAlreadyLocked {
+	if err != observer.ErrCantUnLockTrie {
 		t.Error("Error type is not what expected")
 	}
 	if observerTrie2 != nil {
 		t.Error("Observer trie should be nil")
 	}
+}
+
+func TestWeCanLockAndUnlockTrie(t *testing.T) {
+	testdb, _ := ethdb.NewMemDatabase()
+
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Errorf("generation of private key failed")
+	}
+
+	c, err := observer.NewChain(testdb, privKey)
+	if err != nil {
+		t.Errorf("NewChain() error = %v", err)
+		return
+	}
+
+	// Locking and getting the statement trie
+	observerTrie, err := c.LockAndGetTrie()
+	if err != nil {
+		t.Error("New chain has no trie root")
+	}
+	if observerTrie.Root() == nil {
+		t.Error("Non nil trie has no Root()")
+	}
+
+	// Add something to the trie
+
 }

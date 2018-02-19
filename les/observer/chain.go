@@ -32,8 +32,8 @@ var ErrNoFirstBlock = errors.New("First block not found in observer chain")
 // ErrNoBlock if we can not retrieve requested block
 var ErrNoBlock = errors.New("Block not found in observer chain")
 
-// ErrTrieIsAlreadyLocked if trie is locked already
-var ErrTrieIsAlreadyLocked = errors.New("Can not unlock, Observer trie is already locked, sorry")
+// ErrCantUnLockTrie if trie can not be unlocked
+var ErrCantUnLockTrie = errors.New("Can not unlock Observer trie")
 
 const ( // statuses for statement trie
 	locked = iota
@@ -100,6 +100,9 @@ func (o *Chain) CurrentBlock() *Block {
 
 // LockAndGetTrie lock trie mutex and get r/w access to the current observer trie
 func (o *Chain) LockAndGetTrie() (*trie.Trie, error) {
+	if sts := o.trieStatus.Load(); sts == locked || sts == unlocking {
+		return nil, ErrCantUnLockTrie
+	}
 	if sts := o.trieStatus.Load(); sts == nil || sts == unlocked {
 		o.trieStatus.Store(locked)
 		tr, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
@@ -107,27 +110,37 @@ func (o *Chain) LockAndGetTrie() (*trie.Trie, error) {
 			return tr, nil
 		}
 	}
-	return nil, ErrTrieIsAlreadyLocked
+	return nil, ErrCantUnLockTrie
 }
 
 // UnlockTrie unlock trie mutex
-func (o *Chain) UnlockTrie() {
-	// check if trie is locked
-	// if locked, commit trie, save block, then unlock trie
+func (o *Chain) UnlockTrie() error {
+	// If it is locked, set to unlocking, commit the trie, create block with it, save it, and unlock the chain.
 	if sts := o.trieStatus.Load(); sts == locked {
-
+		o.trieStatus.Store(unlocking)
+		defer o.trieStatus.Store(unlocked)
+	} else {
+		return errors.New("Error unlocking trie, original status is not locked")
 	}
-
+	tr, err := trie.New(o.currentBlock.TrieRoot(), trie.NewDatabase(o.db))
+	if err != nil {
+		return err
+	}
+	hash, err := tr.Commit(nil)
+	if err != nil {
+		return err
+	}
+	block := o.CurrentBlock().CreateSuccessor(hash, o.privateKey)
+	if block == nil {
+		return errors.New("Could not create block with trie hash")
+	}
+	o.currentBlock = block
+	return nil
 }
 
 // CreateBlock commits current trie and seals a new block; continues using the same trie
 // values are persistent, we will care about garbage collection later
 func (o *Chain) CreateBlock() *Block {
-	t, err := o.LockAndGetTrie()
-	if err == nil {
-		t.Commit(nil)
-		return o.CurrentBlock().CreateSuccessor(o.CurrentBlock().TrieRoot(), o.privateKey)
-	}
 	return o.CurrentBlock().CreateSuccessor(o.CurrentBlock().TrieRoot(), o.privateKey)
 }
 
